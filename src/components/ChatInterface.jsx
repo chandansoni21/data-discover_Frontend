@@ -2,14 +2,16 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Send, X, ArrowLeft, Download, Share2, Lock, Globe,
   LayoutDashboard, MessageSquare, Sliders, ChevronLeft, ChevronRight,
-  Bot, User, Sparkles, Mic, MicOff, Languages, Moon, Sun,
-  Copy, ThumbsUp, ThumbsDown, RotateCcw, FileText, UserPlus, Edit3, Trash2, Check, Share
+  User, Sparkles, Mic, MicOff, Languages, Moon, Sun,
+  Copy, ThumbsUp, ThumbsDown, RotateCcw, FileText, UserPlus, Edit3, Trash2, Check
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import Dashboard from './Dashboard';
 import DocumentSummary from './DocumentSummary';
 import { exportChatToPDF } from '../utils/pdfExport';
 import logo from '../Assets/lomgo.png';
+import { API } from '../utils/api';
+import PDFViewer from './PDFViewer';
 
 // Language options
 const languages = [
@@ -28,6 +30,7 @@ export default function ChatInterface({
   fileType,
   visibility = 'private',
   isUploadComplete = false,
+  dbName, // Database name from catalog
   onClose
 }) {
   const { isDark, toggleTheme } = useTheme();
@@ -39,18 +42,23 @@ export default function ChatInterface({
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [uploadComplete, setUploadComplete] = useState(isUploadComplete);
   const [messageHistory, setMessageHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showParticipantModal, setShowParticipantModal] = useState(false);
   const [participantEmail, setParticipantEmail] = useState('');
+  // eslint-disable-next-line no-unused-vars
   const [participants, setParticipants] = useState([]);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [chatTitle, setChatTitle] = useState(domain?.name || 'Chat Session');
+  const [chatTitle, setChatTitle] = useState(domain?.name || dbName || 'Chat Session');
   const [likedMessages, setLikedMessages] = useState([]);
   const [dislikedMessages, setDislikedMessages] = useState([]);
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [shareLinkCopied, setShareLinkCopied] = useState(false);
+  const [selectedPdf, setSelectedPdf] = useState(null);
+  const [dbFiles, setDbFiles] = useState([]);
+  const [fileLoading, setFileLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
 
@@ -64,7 +72,7 @@ export default function ChatInterface({
         timestamp: new Date()
       }]);
     }
-  }, [uploadComplete, domain, fileType]);
+  }, [uploadComplete, domain, fileType, messages.length]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -97,6 +105,39 @@ export default function ChatInterface({
     }
   }, [selectedLanguage]);
 
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const db = dbName || domain?.name;
+      if (!db) return;
+
+      try {
+        const res = await API.chat.getHistory(db);
+        if (res.data && Array.isArray(res.data)) {
+          const historyMessages = res.data.flatMap((item, index) => [
+            {
+              id: `history-${index}-user`,
+              type: 'user',
+              text: item.query,
+              timestamp: new Date()
+            },
+            {
+              id: `history-${index}-bot`,
+              type: 'bot',
+              text: item.answer,
+              sources: item.citation,
+              timestamp: new Date()
+            }
+          ]);
+          setMessages(historyMessages);
+        }
+      } catch (err) {
+        console.error("Failed to load chat history", err);
+      }
+    };
+
+    fetchHistory();
+  }, [dbName, domain]);
+
   const toggleListening = () => {
     if (!recognitionRef.current) return;
 
@@ -109,7 +150,7 @@ export default function ChatInterface({
     }
   };
 
-  const handleSendMessage = (textOverride) => {
+  const handleSendMessage = async (textOverride) => {
     const textToSend = textOverride || inputValue;
     if (!textToSend.trim() || !uploadComplete) return;
 
@@ -124,29 +165,37 @@ export default function ChatInterface({
     setInputValue('');
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const responses = [
-        `Based on your ${fileType?.toUpperCase() || 'data'} analysis, I found the following insights:\n\n• The dataset contains significant patterns in the primary metrics\n• There's a 15% increase in activity compared to the previous period\n• Key correlations were identified between variables A and B\n\nWould you like me to elaborate on any of these findings?`,
-        `I've analyzed your query about "${textToSend}" and here's what I found:\n\n📊 **Summary Statistics:**\n- Total records: 12,450\n- Average value: $1,245.67\n- Growth rate: +8.5%\n\nThe data suggests positive trends across all major categories. Should I generate a detailed report?`,
-        `Great question! Looking at the ${domain?.name || 'selected domain'} data:\n\n1. **Primary Insight:** The main metric shows consistent growth\n2. **Secondary Finding:** There are seasonal patterns in the data\n3. **Recommendation:** Consider focusing on Q2 for maximum impact\n\nDo you want me to dive deeper into any specific area?`
-      ];
+    try {
+      const db = dbName || domain?.name || 'default';
+      // Call backend API
+      const response = await API.chat.sendQuery({
+        query: textToSend,
+        database: db,
+        visibility: visibility === 'public' ? 'global' : 'local'
+      });
 
       const botMessage = {
         id: messages.length + 2,
         type: 'bot',
-        text: responses[Math.floor(Math.random() * responses.length)],
+        text: response.data.bot_answer,
+        sources: response.data.sources || [],
+        charts: response.data.charts || {},
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, botMessage]);
-      setIsLoading(false);
-    }, 1500);
-  };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Query failed:', error);
+      const errorMessage = {
+        id: messages.length + 2,
+        type: 'bot',
+        text: 'Sorry, I encountered an error processing your question. Please try again.',
+        timestamp: new Date(),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -216,8 +265,32 @@ export default function ChatInterface({
   // Show dashboard for Excel/SQL domains
   const showDashboard = fileType === 'excel' || fileType === 'sql' || domain?.id === 'excel' || domain?.id === 'sql';
 
+  useEffect(() => {
+    const fetchDbFiles = async () => {
+      setFileLoading(true);
+      try {
+        const name = dbName || domain?.name;
+        if (name) {
+          const res = await API.chat.getDbFiles(name);
+          if (res.data && res.data.files) {
+            setDbFiles(res.data.files);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch files', err);
+      } finally {
+        setFileLoading(false);
+      }
+    };
+
+    if (activeSection === 'preview') {
+      fetchDbFiles();
+    }
+  }, [activeSection, dbName, domain]);
+
   const renderChatbot = () => (
-    <div className={`flex flex-col h-full ${bgClass}`}>
+    <div className={`flex flex-col h-full ${bgClass} relative`}>
+
       {/* Upload Status Banner */}
       {!uploadComplete && (
         <div className={`${isDark ? 'bg-yellow-900/30 border-yellow-700' : 'bg-yellow-50 border-yellow-200'} border-b px-6 py-4`}>
@@ -231,230 +304,316 @@ export default function ChatInterface({
         </div>
       )}
 
-      {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {messages.map((message) => (
-          <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`flex items-start gap-3 max-w-[75%] ${message.type === 'user' ? 'flex-row-reverse' : ''}`}>
-              {/* Avatar */}
-              <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${message.type === 'user'
-                ? 'bg-gradient-to-br from-blue-500 to-purple-600'
-                : 'bg-gradient-to-br from-emerald-400 to-cyan-500'
-                }`}>
-                {message.type === 'user' ? (
-                  <User className="w-5 h-5 text-white" />
-                ) : (
-                  <img src={logo} alt="AI" className="w-6 h-6 object-contain" />
-                )}
-              </div>
-
-              {/* Message Bubble */}
-              <div className="group relative">
-                <div
-                  className={`px-5 py-4 rounded-2xl shadow-sm ${message.type === 'user'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-tr-md'
-                    : `${cardBgClass} ${textClass} border ${borderClass} rounded-tl-md`
-                    }`}
-                >
-                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.text}</p>
-                  <p className={`text-xs mt-2 ${message.type === 'user' ? 'text-blue-200' : subTextClass}`}>
-                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-
-                {/* Action buttons for bot messages - Always visible */}
-                {message.type === 'bot' && (
-                  <div className="flex items-center gap-1 mt-2 transition-opacity">
-                    <button
-                      onClick={() => handleCopyMessage(message.text, message.id)}
-                      className={`p-1.5 ${copiedMessageId === message.id ? 'text-green-500' : subTextClass} hover:${textClass} ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-lg transition-all duration-200 active:scale-95`}
-                      title="Copy"
-                    >
-                      {copiedMessageId === message.id ? <Check className="w-4 h-4 animate-in zoom-in-50" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                    <button
-                      onClick={() => handleLike(message.id)}
-                      className={`p-1.5 ${likedMessages.includes(message.id) ? 'text-green-500 scale-110' : subTextClass} hover:text-green-500 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-green-50'} rounded-lg transition-all duration-200 active:scale-90`}
-                      title="Like"
-                    >
-                      <ThumbsUp className={`w-4 h-4 ${likedMessages.includes(message.id) ? 'fill-current' : ''}`} />
-                    </button>
-                    <button
-                      onClick={() => handleDislike(message.id)}
-                      className={`p-1.5 ${dislikedMessages.includes(message.id) ? 'text-red-500 scale-110' : subTextClass} hover:text-red-500 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-red-50'} rounded-lg transition-all duration-200 active:scale-90`}
-                      title="Dislike"
-                    >
-                      <ThumbsDown className={`w-4 h-4 ${dislikedMessages.includes(message.id) ? 'fill-current' : ''}`} />
-                    </button>
-                    <button
-                      onClick={() => handleRegenerate(message.id)}
-                      className={`p-1.5 ${subTextClass} hover:text-blue-500 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-blue-50'} rounded-lg transition-colors`}
-                      title="Regenerate"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                    </button>
+      {/* Main Content Area - Split View */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Left Column: Chat & Input */}
+        <div className={`flex flex-col transition-all duration-300 ${selectedPdf ? 'w-[60%] border-r ' + borderClass : 'w-full'}`}>
+          {/* Chat Messages */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-rounded scrollbar-thumb-cyan-300 scrollbar-track-transparent">
+            {messages.map((message) => (
+              <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`flex items-start gap-3 max-w-[75%] ${message.type === 'user' ? 'flex-row-reverse' : ''}`}>
+                  {/* Avatar */}
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${message.type === 'user'
+                    ? 'bg-gradient-to-br from-blue-500 to-purple-600'
+                    : 'bg-gradient-to-br from-emerald-400 to-cyan-500'
+                    }`}>
+                    {message.type === 'user' ? (
+                      <User className="w-5 h-5 text-white" />
+                    ) : (
+                      <img src={logo} alt="AI" className="w-6 h-6 object-contain" />
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
 
-        {/* Loading Indicator */}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center">
-                <img src={logo} alt="AI" className="w-6 h-6 object-contain" />
-              </div>
-              <div className={`${cardBgClass} border ${borderClass} px-5 py-4 rounded-2xl rounded-tl-md shadow-sm`}>
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-1">
-                    <div className={`w-2 h-2 ${isDark ? 'bg-gray-500' : 'bg-gray-400'} rounded-full animate-bounce`} style={{ animationDelay: '0ms' }} />
-                    <div className={`w-2 h-2 ${isDark ? 'bg-gray-500' : 'bg-gray-400'} rounded-full animate-bounce`} style={{ animationDelay: '150ms' }} />
-                    <div className={`w-2 h-2 ${isDark ? 'bg-gray-500' : 'bg-gray-400'} rounded-full animate-bounce`} style={{ animationDelay: '300ms' }} />
-                  </div>
-                  <span className={`text-sm ${subTextClass}`}>Analyzing...</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+                  {/* Message Bubble */}
+                  <div className="group relative">
+                    <div
+                      className={`px-5 py-4 rounded-2xl shadow-sm ${message.type === 'user'
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-tr-md'
+                        : `${cardBgClass} ${textClass} border ${borderClass} rounded-tl-md`
+                        }`}
+                    >
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.text}</p>
 
-        {/* Empty state when no upload */}
-        {!uploadComplete && messages.length === 0 && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className={`w-20 h-20 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} rounded-full flex items-center justify-center mx-auto mb-4`}>
-                <FileText className={`w-10 h-10 ${subTextClass}`} />
-              </div>
-              <h3 className={`text-xl font-semibold ${textClass} mb-2`}>Document Processing</h3>
-              <p className={subTextClass}>Your document is being processed. Chat will be available shortly.</p>
-            </div>
-          </div>
-        )}
+                      {/* Sources Rendering */}
+                      {message.sources && message.sources.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                          <p className={`text-xs font-semibold mb-2 ${subTextClass}`}>References:</p>
+                          <div className="space-y-2">
+                            {Array.from(new Set(message.sources.map(s => s.file_name))).map((fileName, idx) => {
+                              const fileSources = message.sources.filter(s => s.file_name === fileName);
+                              return (
+                                <div key={idx} className="flex flex-wrap items-center gap-2 text-xs">
+                                  <span className={`${textClass} opacity-80`}>📄 {fileName}:</span>
+                                  {fileSources.map((source, sIdx) => (
+                                    <button
+                                      key={sIdx}
+                                      onClick={() => setSelectedPdf({
+                                        url: `${source.file_link}#page=${source.page_numbers}`,
+                                        fileName: source.file_name,
+                                        page: source.page_numbers
+                                      })}
+                                      className={`px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors`}
+                                    >
+                                      Page {source.page_numbers}
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Chat Input - Only visible after upload complete */}
-      {uploadComplete && (
-        <div className={`border-t ${borderClass} ${cardBgClass} p-4`}>
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-center gap-3">
-              {/* Text Input - Left side */}
-              <div className="flex-1 relative">
-                <textarea
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Enter to send (without shift)
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      if (inputValue.trim() && !isLoading) {
-                        // Add to history
-                        setMessageHistory(prev => [inputValue, ...prev.slice(0, 49)]);
-                        setHistoryIndex(-1);
-                        handleSendMessage();
-                      }
-                    }
-                    // Up arrow for previous messages
-                    if (e.key === 'ArrowUp' && !inputValue.trim()) {
-                      e.preventDefault();
-                      if (messageHistory.length > 0) {
-                        const newIndex = Math.min(historyIndex + 1, messageHistory.length - 1);
-                        setHistoryIndex(newIndex);
-                        setInputValue(messageHistory[newIndex]);
-                      }
-                    }
-                    // Down arrow for next messages
-                    if (e.key === 'ArrowDown') {
-                      e.preventDefault();
-                      if (historyIndex > 0) {
-                        const newIndex = historyIndex - 1;
-                        setHistoryIndex(newIndex);
-                        setInputValue(messageHistory[newIndex]);
-                      } else if (historyIndex === 0) {
-                        setHistoryIndex(-1);
-                        setInputValue('');
-                      }
-                    }
-                  }}
-                  placeholder="Ask a question about your data..."
-                  rows={1}
-                  className={`w-full px-5 py-3.5 border ${borderClass} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all ${cardBgClass} ${textClass}`}
-                  style={{ minHeight: '48px', maxHeight: '120px' }}
-                />
-              </div>
-
-              {/* Controls - Right side */}
-              <div className="flex items-center gap-2">
-                {/* Microphone Button */}
-                <button
-                  onClick={toggleListening}
-                  className={`flex-shrink-0 p-3 rounded-xl transition-all ${isListening
-                    ? 'bg-red-500 text-white animate-pulse'
-                    : `${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textClass}`
-                    }`}
-                  title={isListening ? 'Stop listening' : 'Voice input'}
-                >
-                  {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                </button>
-
-                {/* Language Dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-                    className={`flex-shrink-0 p-3 rounded-xl transition-all ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textClass}`}
-                    title="Select language"
-                  >
-                    <Languages className="w-5 h-5" />
-                  </button>
-
-                  {showLanguageDropdown && (
-                    <div className={`absolute bottom-full right-0 mb-2 ${cardBgClass} border ${borderClass} rounded-xl shadow-xl py-2 min-w-[150px] max-h-60 overflow-y-auto z-10`}>
-                      {languages.map((lang) => (
-                        <button
-                          key={lang.code}
-                          onClick={() => {
-                            setSelectedLanguage(lang.code);
-                            setShowLanguageDropdown(false);
-                          }}
-                          className={`w-full px-4 py-2 text-left text-sm ${selectedLanguage === lang.code
-                            ? 'bg-blue-500 text-white'
-                            : `${textClass} ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`
-                            }`}
-                        >
-                          {lang.name}
-                        </button>
-                      ))}
+                      <p className={`text-xs mt-2 ${message.type === 'user' ? 'text-blue-200' : subTextClass}`}>
+                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
                     </div>
-                  )}
-                </div>
 
-                {/* Send Button */}
-                <button
-                  onClick={() => {
-                    if (inputValue.trim()) {
-                      setMessageHistory(prev => [inputValue, ...prev.slice(0, 49)]);
-                      setHistoryIndex(-1);
-                      handleSendMessage();
-                    }
-                  }}
-                  disabled={isLoading || !inputValue.trim()}
-                  className="flex-shrink-0 p-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
+                    {/* Action buttons for bot messages - Always visible */}
+                    {message.type === 'bot' && (
+                      <div className="flex items-center gap-1 mt-2 transition-opacity">
+                        <button
+                          onClick={() => handleCopyMessage(message.text, message.id)}
+                          className={`p-1.5 ${copiedMessageId === message.id ? 'text-green-500' : subTextClass} hover:${textClass} ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-lg transition-all duration-200 active:scale-95`}
+                          title="Copy"
+                        >
+                          {copiedMessageId === message.id ? <Check className="w-4 h-4 animate-in zoom-in-50" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => handleLike(message.id)}
+                          className={`p-1.5 ${likedMessages.includes(message.id) ? 'text-green-500 scale-110' : subTextClass} hover:text-green-500 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-green-50'} rounded-lg transition-all duration-200 active:scale-90`}
+                          title="Like"
+                        >
+                          <ThumbsUp className={`w-4 h-4 ${likedMessages.includes(message.id) ? 'fill-current' : ''}`} />
+                        </button>
+                        <button
+                          onClick={() => handleDislike(message.id)}
+                          className={`p-1.5 ${dislikedMessages.includes(message.id) ? 'text-red-500 scale-110' : subTextClass} hover:text-red-500 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-red-50'} rounded-lg transition-all duration-200 active:scale-90`}
+                          title="Dislike"
+                        >
+                          <ThumbsDown className={`w-4 h-4 ${dislikedMessages.includes(message.id) ? 'fill-current' : ''}`} />
+                        </button>
+                        <button
+                          onClick={() => handleRegenerate(message.id)}
+                          className={`p-1.5 ${subTextClass} hover:text-blue-500 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-blue-50'} rounded-lg transition-colors`}
+                          title="Regenerate"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Loading Indicator */}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center">
+                    <img src={logo} alt="AI" className="w-6 h-6 object-contain" />
+                  </div>
+                  <div className={`${cardBgClass} border ${borderClass} px-5 py-4 rounded-2xl rounded-tl-md shadow-sm`}>
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <div className={`w-2 h-2 ${isDark ? 'bg-gray-500' : 'bg-gray-400'} rounded-full animate-bounce`} style={{ animationDelay: '0ms' }} />
+                        <div className={`w-2 h-2 ${isDark ? 'bg-gray-500' : 'bg-gray-400'} rounded-full animate-bounce`} style={{ animationDelay: '150ms' }} />
+                        <div className={`w-2 h-2 ${isDark ? 'bg-gray-500' : 'bg-gray-400'} rounded-full animate-bounce`} style={{ animationDelay: '300ms' }} />
+                      </div>
+                      <span className={`text-sm ${subTextClass}`}>Analyzing...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Empty state when no upload */}
+            {!uploadComplete && messages.length === 0 && (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <div className={`w-20 h-20 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                    <FileText className={`w-10 h-10 ${subTextClass}`} />
+                  </div>
+                  <h3 className={`text-xl font-semibold ${textClass} mb-2`}>Document Processing</h3>
+                  <p className={subTextClass}>Your document is being processed. Chat will be available shortly.</p>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Chat Input - Only visible after upload complete */}
+          {uploadComplete && (
+            <div className={`border-t ${borderClass} ${cardBgClass} p-4`}>
+              <div className="max-w-4xl mx-auto">
+                <div className="flex items-center gap-3">
+                  {/* Text Input - Left side */}
+                  <div className="flex-1 relative">
+                    <textarea
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        // Enter to send (without shift)
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (inputValue.trim() && !isLoading) {
+                            // Add to history
+                            setMessageHistory(prev => [inputValue, ...prev.slice(0, 49)]);
+                            setHistoryIndex(-1);
+                            handleSendMessage();
+                          }
+                        }
+                        // Up arrow for previous messages
+                        if (e.key === 'ArrowUp' && !inputValue.trim()) {
+                          e.preventDefault();
+                          if (messageHistory.length > 0) {
+                            const newIndex = Math.min(historyIndex + 1, messageHistory.length - 1);
+                            setHistoryIndex(newIndex);
+                            setInputValue(messageHistory[newIndex]);
+                          }
+                        }
+                        // Down arrow for next messages
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          if (historyIndex > 0) {
+                            const newIndex = historyIndex - 1;
+                            setHistoryIndex(newIndex);
+                            setInputValue(messageHistory[newIndex]);
+                          } else if (historyIndex === 0) {
+                            setHistoryIndex(-1);
+                            setInputValue('');
+                          }
+                        }
+                      }}
+                      placeholder="Ask a question about your data..."
+                      rows={1}
+                      className={`w-full px-5 py-3.5 border ${borderClass} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all ${cardBgClass} ${textClass}`}
+                      style={{ minHeight: '48px', maxHeight: '120px' }}
+                    />
+                  </div>
+
+                  {/* Controls - Right side */}
+                  <div className="flex items-center gap-2">
+                    {/* Microphone Button */}
+                    <button
+                      onClick={toggleListening}
+                      className={`flex-shrink-0 p-3 rounded-xl transition-all ${isListening
+                        ? 'bg-red-500 text-white animate-pulse'
+                        : `${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textClass}`
+                        }`}
+                      title={isListening ? 'Stop listening' : 'Voice input'}
+                    >
+                      {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                    </button>
+
+                    {/* Language Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+                        className={`flex-shrink-0 p-3 rounded-xl transition-all ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textClass}`}
+                        title="Select language"
+                      >
+                        <Languages className="w-5 h-5" />
+                      </button>
+
+                      {showLanguageDropdown && (
+                        <div className={`absolute bottom-full right-0 mb-2 ${cardBgClass} border ${borderClass} rounded-xl shadow-xl py-2 min-w-[150px] max-h-60 overflow-y-auto z-10`}>
+                          {languages.map((lang) => (
+                            <button
+                              key={lang.code}
+                              onClick={() => {
+                                setSelectedLanguage(lang.code);
+                                setShowLanguageDropdown(false);
+                              }}
+                              className={`w-full px-4 py-2 text-left text-sm ${selectedLanguage === lang.code
+                                ? 'bg-blue-500 text-white'
+                                : `${textClass} ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`
+                                }`}
+                            >
+                              {lang.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Send Button */}
+                    <button
+                      onClick={() => {
+                        if (inputValue.trim()) {
+                          setMessageHistory(prev => [inputValue, ...prev.slice(0, 49)]);
+                          setHistoryIndex(-1);
+                          handleSendMessage();
+                        }
+                      }}
+                      disabled={isLoading || !inputValue.trim()}
+                      className="flex-shrink-0 p-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    >
+                      <Send className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+                <p className={`text-xs ${subTextClass} mt-2 text-center`}>
+                  Press Enter to send • ↑ for previous • {languages.find(l => l.code === selectedLanguage)?.name || 'English'}
+                </p>
               </div>
             </div>
-            <p className={`text-xs ${subTextClass} mt-2 text-center`}>
-              Press Enter to send • ↑ for previous • {languages.find(l => l.code === selectedLanguage)?.name || 'English'}
-            </p>
-          </div>
+          )}
         </div>
-      )}
-    </div>
+
+        {/* Right Column: PDF Viewer */}
+        {
+          selectedPdf && (
+            <div className={`w-[40%] h-full border-l ${borderClass} animate-in slide-in-from-right duration-300 rounded-l-[30px] overflow-hidden shadow-2xl ml-[-1px] z-10`}>
+              <PDFViewer
+                url={selectedPdf.url.split('#')[0]}
+                initialPage={selectedPdf.page || 1}
+                onClose={() => setSelectedPdf(null)}
+                isDark={isDark}
+              />
+            </div>
+          )
+        }
+      </div >
+
+      {/* Custom Styles */}
+      < style > {`
+        .scrollbar-thin::-webkit-scrollbar {
+          width: 5px;
+        }
+        .scrollbar-thumb-cyan-300::-webkit-scrollbar-thumb {
+          background: linear-gradient(to bottom, #67e8f9, #a855f7);
+          border-radius: 3px;
+        }
+        .scrollbar-track-transparent::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .scrollbar-thumb-rounded::-webkit-scrollbar-thumb {
+          border-radius: 3px;
+        }
+        
+        textarea {
+          scrollbar-width: thin;
+          scrollbar-color: #67e8f9 transparent;
+        }
+        
+        textarea::-webkit-scrollbar {
+          width: 4px;
+        }
+        
+        textarea::-webkit-scrollbar-thumb {
+          background-color: #67e8f9;
+          border-radius: 2px;
+        }
+        
+        textarea::-webkit-scrollbar-track {
+          background: transparent;
+        }
+      `}</style >
+    </div >
   );
 
   const renderSettings = () => (
@@ -545,46 +704,75 @@ export default function ChatInterface({
         );
       case 'preview':
         return (
-          <div className={`flex-1 flex flex-col ${bgClass}`}>
-            <div className="p-8 max-w-4xl mx-auto w-full">
-              <div className={`${cardBgClass} border ${borderClass} rounded-2xl p-8 shadow-sm`}>
-                <div className="flex items-center gap-4 mb-6 pb-6 border-b ${borderClass}">
+          <div className={`flex-1 flex flex-col ${bgClass} h-full`}>
+            {!selectedPdf && (
+              <div className={`p-6 border-b ${borderClass} flex items-center justify-between`}>
+                <div className="flex items-center gap-3">
                   <div className={`p-3 rounded-xl ${isDark ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
                     <FileText className="w-6 h-6 text-blue-500" />
                   </div>
                   <div>
-                    <h3 className={`text-xl font-bold ${textClass}`}>{domain?.name || 'Document'} Content</h3>
-                    <p className={subTextClass}>Raw content preview of the processed file</p>
-                  </div>
-                </div>
-
-                <div className={`space-y-4 ${subTextClass} leading-relaxed text-sm`}>
-                  <p>Processing text from {domain?.name || 'uploaded file'}...</p>
-                  <div className="space-y-2">
-                    <div className={`h-4 w-full ${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded animate-pulse`} />
-                    <div className={`h-4 w-5/6 ${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded animate-pulse`} />
-                    <div className={`h-4 w-4/6 ${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded animate-pulse`} />
-                    <div className={`h-4 w-full ${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded animate-pulse`} />
-                    <div className={`h-4 w-3/4 ${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded animate-pulse`} />
-                  </div>
-                  <p className="pt-4">
-                    The document contains detailed analysis and information regarding {domain?.name || 'the selected domain'}.
-                    Our AI has extracted the primary text content for processing and conversation.
-                  </p>
-                  {/* Mock content representation */}
-                  <div className={`mt-8 p-6 ${isDark ? 'bg-gray-900/50' : 'bg-gray-50'} rounded-xl border ${borderClass} font-serif whitespace-pre-wrap`}>
-                    This is a preview of the processed text content for the {fileType?.toUpperCase()} document.
-
-                    The system has identified key sections and entities that are now available for query through the chatbot interface.
-
-                    You can ask specific questions about:
-                    • Executive Summary
-                    • Key Findings
-                    • Strategic Recommendations
-                    • Data Sets and Appendices
+                    <h3 className={`text-xl font-bold ${textClass}`}>Document Preview</h3>
+                    <p className={subTextClass}>View available PDF documents</p>
                   </div>
                 </div>
               </div>
+            )}
+
+            <div className="flex-1 overflow-hidden relative">
+              {selectedPdf ? (
+                <PDFViewer
+                  url={selectedPdf.url.split('#')[0]}
+                  initialPage={selectedPdf.page || 1}
+                  onClose={() => setSelectedPdf(null)}
+                  isDark={isDark}
+                />
+              ) : (
+                <div className="h-full overflow-y-auto p-6">
+                  {fileLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {dbFiles.filter(f => f.file_name?.toLowerCase().endsWith('.pdf')).length === 0 ? (
+                        <div className={`col-span-full text-center ${subTextClass} py-10`}>
+                          No PDF files found in this database.
+                        </div>
+                      ) : (
+                        dbFiles.filter(f => f.file_name?.toLowerCase().endsWith('.pdf')).map((file, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              setSelectedPdf({
+                                url: file.file_link,
+                                fileName: file.file_name,
+                                page: 1
+                              });
+                              // Stay in preview section
+                            }}
+                            className={`p-5 rounded-2xl border ${borderClass} ${isDark ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white hover:bg-gray-50'} cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1 flex flex-col gap-4 group`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl text-red-500">
+                                <FileText className="w-8 h-8" />
+                              </div>
+                              <span className={`px-2 py-1 text-xs font-bold rounded-lg ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>PDF</span>
+                            </div>
+
+                            <div>
+                              <h4 className={`font-bold ${textClass} text-lg truncate mb-1`} title={file.file_name}>{file.file_name}</h4>
+                              <p className="text-sm text-blue-500 group-hover:underline flex items-center gap-1">
+                                Open in Viewer <ArrowLeft className="w-3 h-3 rotate-180" />
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -831,7 +1019,7 @@ export default function ChatInterface({
                   </div>
                 )}
               </div>
-              <div className="p-6 border-t ${borderClass} flex justify-end">
+              <div className={`p-6 border-t ${borderClass} flex justify-end`}>
                 <button
                   onClick={() => setShowParticipantModal(false)}
                   className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg transition-all"
@@ -842,6 +1030,10 @@ export default function ChatInterface({
             </div>
           </div>
         )}
+
+
+
+
 
         {/* Content */}
         <div className="flex-1 overflow-hidden">

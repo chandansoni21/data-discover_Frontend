@@ -2,9 +2,10 @@ import React, { useState, useRef } from 'react';
 import {
     X, Upload, FileText, FileSpreadsheet, Database, FileJson,
     Plug, Globe, Lock, CheckCircle, AlertCircle, File, Server,
-    Key, User, Shield, Eye, EyeOff, Loader2, FolderOpen
+    Key, User, Shield, Eye, EyeOff, Loader2, FolderOpen, Clock
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { API } from '../utils/api';
 
 const fileTypes = [
     { id: 'pdf', name: 'PDF', icon: FileText, color: 'from-red-500 to-rose-600', accept: '.pdf', description: 'PDF Documents' },
@@ -47,6 +48,8 @@ export default function UploadModal({
         apiKey: '',
         method: 'GET'
     });
+
+    const [uploadResult, setUploadResult] = useState(null);
 
     const fileInputRef = useRef(null);
     const folderInputRef = useRef(null);
@@ -111,6 +114,8 @@ export default function UploadModal({
         return null;
     };
 
+
+
     const handleUpload = async () => {
         // Validate based on file type
         if (selectedFileType === 'sql') {
@@ -125,43 +130,78 @@ export default function UploadModal({
                 setError(apiError);
                 return;
             }
-        } else if (!selectedFile) {
-            setError('Please select a file to upload');
+        } else if (!selectedFile && selectedFiles.length === 0) {
+            setError('Please select a file or folder to upload');
             return;
         }
 
         setIsUploading(true);
         setUploadProgress(0);
         setError(null);
+        setUploadResult(null);
 
-        // Simulate upload progress
-        const progressInterval = setInterval(() => {
-            setUploadProgress(prev => {
-                if (prev >= 90) {
-                    clearInterval(progressInterval);
-                    return prev;
-                }
-                return prev + 10;
+        // Prepare FormData
+        const formData = new FormData();
+
+        let folderName = '';
+        if (selectedFiles.length > 0) {
+            // Folder upload
+            Array.from(selectedFiles).forEach(file => {
+                formData.append('files', file);
             });
-        }, 150);
+            // Try to set folder name from relative path or first file
+            const distinctFolders = new Set(Array.from(selectedFiles).map(f => f.webkitRelativePath.split('/')[0]).filter(Boolean));
+            folderName = distinctFolders.size > 0 ? Array.from(distinctFolders)[0] : 'Uploaded_Folder';
+        } else if (selectedFile) {
+            // Single file upload
+            formData.append('files', selectedFile);
+            folderName = selectedFile.name.split('.')[0];
+        }
 
-        // Simulate upload completion
-        setTimeout(() => {
+        formData.append('folder_name', folderName);
+
+        // Map frontend file types to backend expected types
+        const typeMapping = {
+            'pdf': 'standard_pdf',
+            'word': 'docx',
+            'excel': 'csv', // defaulting to csv for excel category based on common patterns, or pass 'xlsx' if supported
+            'json': 'json',
+            'txt': 'txt'
+        };
+        formData.append('file_type', typeMapping[selectedFileType] || selectedFileType);
+        formData.append('visibility', visibility === 'public' ? 'global' : 'local');
+
+        try {
+            // Simulated progress for UX before real upload starts or during if axios support (axios upload progress not implemented here yet)
+            const progressInterval = setInterval(() => {
+                setUploadProgress(prev => {
+                    if (prev >= 90) return prev;
+                    return prev + 10;
+                });
+            }, 500);
+
+            const response = await API.upload.createDatabase(formData);
+
             clearInterval(progressInterval);
             setUploadProgress(100);
 
-            setTimeout(() => {
-                setIsUploading(false);
-                onUploadComplete({
-                    file: selectedFile,
-                    fileType: selectedFileType,
-                    visibility,
-                    domain: preSelectedDomain,
-                    sqlCredentials: selectedFileType === 'sql' ? sqlCredentials : null,
-                    apiConfig: selectedFileType === 'api' ? apiConfig : null
-                });
-            }, 400);
-        }, 1800);
+            // Check if database creation failed
+            const isFailed = response.data.message === "Database not created" ||
+                (response.data.eta && response.data.eta === "0 minutes");
+
+            // Handle Success or Failure
+            setUploadResult({
+                ...response.data,
+                isError: isFailed
+            });
+            setIsUploading(false);
+
+        } catch (err) {
+            console.error('Upload failed', err);
+            setError(err.response?.data?.detail || 'Upload failed. Please try again.');
+            setIsUploading(false);
+            setUploadProgress(0);
+        }
     };
 
     const handleClose = () => {
@@ -586,6 +626,116 @@ export default function UploadModal({
                         )}
                     </div>
                 </div>
+
+                {/* Success/Error Overlay */}
+                {uploadResult && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-6 animate-in fade-in zoom-in duration-300">
+                        <div className={`relative ${cardBgClass} p-8 rounded-3xl shadow-2xl max-w-md w-full border ${borderClass} flex flex-col items-center text-center`}>
+                            {uploadResult.isError ? (
+                                <>
+                                    {/* Error State */}
+                                    <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-red-500/30 animate-pulse">
+                                        <AlertCircle className="w-8 h-8 text-white" />
+                                    </div>
+
+                                    <h3 className={`text-2xl font-bold text-red-500 mb-2`}>Database Creation Failed</h3>
+                                    <p className={`${subTextClass} mb-6`}>{uploadResult.message || 'Failed to create database. Please try again.'}</p>
+
+                                    <div className={`w-full p-4 rounded-xl ${isDark ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'} border mb-8`}>
+                                        <div className="flex items-center justify-center gap-2">
+                                            <AlertCircle className="w-5 h-5 text-red-500" />
+                                            <span className={`text-sm font-semibold ${isDark ? 'text-red-400' : 'text-red-600'}`}>
+                                                Please check your configuration and try again
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 w-full">
+                                        <button
+                                            onClick={() => {
+                                                setUploadResult(null);
+                                                setError(null);
+                                                setUploadProgress(0);
+                                            }}
+                                            className={`flex-1 py-3.5 rounded-xl font-semibold transition-all duration-300 ${isDark
+                                                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                }`}
+                                        >
+                                            Close
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                onUploadComplete({
+                                                    ...uploadResult,
+                                                    file: selectedFile || selectedFiles[0],
+                                                    fileType: selectedFileType,
+                                                    visibility: visibility,
+                                                    domain: preSelectedDomain,
+                                                    isUploadComplete: false,
+                                                    hasError: true
+                                                });
+                                                handleClose();
+                                            }}
+                                            className="flex-1 py-3.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition-all hover:scale-[1.02]"
+                                        >
+                                            Try Chatting Anyway
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* Success State */}
+                                    {/* Close Button */}
+                                    <button
+                                        onClick={() => {
+                                            setUploadResult(null);
+                                            setError(null);
+                                            setUploadProgress(0);
+                                        }}
+                                        className={`absolute top-4 right-4 ${subTextClass} hover:${textClass} hover:bg-gray-200 dark:hover:bg-gray-700 p-2 rounded-lg transition-all`}
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+
+                                    <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-500/30">
+                                        <CheckCircle className="w-8 h-8 text-white" />
+                                    </div>
+
+                                    <h3 className={`text-2xl font-bold ${textClass} mb-2`}>Upload Successful!</h3>
+                                    <p className={`${subTextClass} mb-6`}>{uploadResult.message}</p>
+
+                                    <div className={`w-full p-4 rounded-xl ${isDark ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-100'} border mb-8`}>
+                                        <p className={`text-sm ${subTextClass} mb-1`}>Time remaining to chat</p>
+                                        <div className="flex items-center justify-center gap-2">
+                                            <Clock className="w-5 h-5 text-blue-500" />
+                                            <span className={`text-xl font-bold ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                                                {uploadResult.eta || 'Calculating...'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={() => {
+                                            onUploadComplete({
+                                                ...uploadResult,
+                                                file: selectedFile || selectedFiles[0],
+                                                fileType: selectedFileType,
+                                                visibility: visibility,
+                                                domain: preSelectedDomain,
+                                                isUploadComplete: true
+                                            });
+                                            handleClose();
+                                        }}
+                                        className="w-full py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-green-500/30 transition-all hover:scale-[1.02]"
+                                    >
+                                        Start Chatting
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Action Buttons */}
                 <div className={`flex-shrink-0 p-6 border-t ${borderClass} ${cardBgClass}`}>

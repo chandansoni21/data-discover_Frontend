@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  MessageCircle, Plus, LogOut, Clock, User, Database, Zap,
-  TrendingUp, Shield, ChevronRight, Activity, BarChart3,
-  Sparkles, Users, Brain, Bot, Star, ChevronLeft,
-  Home as HomeIcon, Coins, History, Moon, Sun, X,
-  FolderOpen, Edit3, Trash2, Check, FileText, FileSpreadsheet
+  MessageCircle, Plus, LogOut, Clock, User, Database,
+  ChevronRight, Activity, BarChart3,
+  Sparkles, Users, Brain, ChevronLeft,
+  Home as HomeIcon, Coins, History, Moon, Sun,
+  FolderOpen, Edit3, Trash2, Check
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import UploadModal from './UploadModal';
+import Catalogs from './Catalogs';
 import logo from '../Assets/lomgo.png';
 import { chatHistory, activeConversations } from '../data/mockData';
 
@@ -31,19 +32,15 @@ const domains = [
 export default function Home() {
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [chats, setChats] = useState(chatHistory);
   const [activeChats, setActiveChats] = useState(activeConversations);
 
+
+
   const [editingChatId, setEditingChatId] = useState(null);
   const [editValue, setEditValue] = useState('');
-
-  const [catalogs, setCatalogs] = useState([
-    { id: 'cat_001', name: 'Financial Reports 2024', type: 'pdf', size: '45.2 MB', items: 12, lastSync: '2 hours ago', icon: FileText, color: 'text-red-500' },
-    { id: 'cat_002', name: 'Customer Sales Data', type: 'excel', size: '12.8 MB', items: 5, lastSync: '1 day ago', icon: FileSpreadsheet, color: 'text-green-500' },
-    { id: 'cat_003', name: 'Inventory DB', type: 'sql', size: 'N/A', items: 28, lastSync: 'Just now', icon: Database, color: 'text-blue-500' },
-    { id: 'cat_004', name: 'Legal Appendices', type: 'docx', size: '8.4 MB', items: 3, lastSync: '3 days ago', icon: FileText, color: 'text-indigo-500' },
-  ]);
 
   const [tokenUsage] = useState({
     used: 125000,
@@ -61,7 +58,7 @@ export default function Home() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Chat flow states
-  const [showDomainSelection, setShowDomainSelection] = useState(false);
+  // Chat flow states
   const [selectedDomain, setSelectedDomain] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
 
@@ -74,56 +71,33 @@ export default function Home() {
     else setGreeting('Good Evening');
     // If a domain was persisted from LandingPage, restore it
     const savedSelected = sessionStorage.getItem('selectedDomain');
-    let domainFound = false;
 
     if (savedSelected) {
       try {
         const domainObj = JSON.parse(savedSelected);
         setSelectedDomain(domainObj);
-        setShowDomainSelection(false);
-        domainFound = true;
       } catch (e) {
         console.error('Failed to parse saved selected domain', e);
       }
     }
 
     // Check for pending domain from landing page (one-time)
-    const pendingDomainId = sessionStorage.getItem('pendingDomainId');
+    const pendingDomainId = location.state?.domainId || sessionStorage.getItem('pendingDomainId');
     if (pendingDomainId) {
       const domain = domains.find(d => d.id === pendingDomainId);
       if (domain) {
         // persist the selection and open upload modal
         setSelectedDomain(domain);
         sessionStorage.setItem('selectedDomain', JSON.stringify(domain));
-        setShowDomainSelection(false);
         setShowUploadModal(true);
-        domainFound = true;
       }
       sessionStorage.removeItem('pendingDomainId');
     }
+  }, [location.state]);
 
-    // If no domain is selected, redirect to landing page
-    if (!domainFound && !savedSelected) {
-      navigate('/');
-    }
-  }, []);
-
-  const handleStartChat = () => {
-    setShowDomainSelection(true);
-  };
-
-  const handleDomainSelect = (domain) => {
-    setSelectedDomain(domain);
-    // persist selection so Home/Chat keep using it across navigation
-    try {
-      sessionStorage.setItem('selectedDomain', JSON.stringify(domain));
-    } catch (e) {
-      console.error('Failed to persist selected domain', e);
-    }
-    setShowDomainSelection(false);
-    setShowUploadModal(true);
-  };
-
+  const renderCatalogsSection = () => (
+    <Catalogs isDark={isDark} />
+  );
   const handleUploadComplete = (uploadData) => {
     setShowUploadModal(false);
     const sessionData = {
@@ -143,8 +117,6 @@ export default function Home() {
     if (type === 'chat') {
       setChats(prev => prev.map(c => c.id === id ? { ...c, title: newName } : c));
       setActiveChats(prev => prev.map(c => c.id === id ? { ...c, title: newName } : c));
-    } else if (type === 'catalog') {
-      setCatalogs(prev => prev.map(c => c.id === id ? { ...c, name: newName } : c));
     }
     setEditingChatId(null);
   };
@@ -154,13 +126,6 @@ export default function Home() {
     if (window.confirm('Are you sure you want to delete this conversation?')) {
       setChats(prev => prev.filter(c => c.id !== chatId));
       setActiveChats(prev => prev.filter(c => c.id !== chatId));
-    }
-  };
-
-  const handleDeleteCatalog = (e, catalogId) => {
-    e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this catalog? This will remove access to the original data sources.')) {
-      setCatalogs(prev => prev.filter(c => c.id !== catalogId));
     }
   };
 
@@ -195,85 +160,7 @@ export default function Home() {
     navigate('/chat');
   };
 
-  const renderCatalogsSection = () => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <FolderOpen className="w-8 h-8 text-blue-500" />
-          <h2 className={`text-3xl font-bold ${textClass}`}>Data Catalogs</h2>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {catalogs.map((catalog) => (
-          <div key={catalog.id} className={`${cardBgClass} border ${borderClass} rounded-2xl p-6 hover:shadow-xl transition-all group relative overflow-hidden`}>
-            <div className="flex items-start justify-between mb-4">
-              <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} flex-shrink-0`}>
-                <catalog.icon className={`w-6 h-6 ${catalog.color}`} />
-              </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingChatId(catalog.id);
-                    setEditValue(catalog.name);
-                  }}
-                  className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} ${subTextClass}`}
-                  title="Rename"
-                >
-                  <Edit3 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={(e) => handleDeleteCatalog(e, catalog.id)}
-                  className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} text-red-400`}
-                  title="Delete"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {editingChatId === catalog.id ? (
-              <div className="mb-2" onClick={e => e.stopPropagation()}>
-                <input
-                  autoFocus
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleRename(catalog.id, editValue, 'catalog');
-                    if (e.key === 'Escape') setEditingChatId(null);
-                  }}
-                  className={`w-full px-2 py-1 rounded border-2 border-blue-500 ${isDark ? 'bg-gray-700' : 'bg-white'} ${textClass} text-sm font-bold focus:outline-none`}
-                />
-              </div>
-            ) : (
-              <h3 className={`font-bold ${textClass} text-lg mb-1 group-hover:text-blue-500 transition-colors truncate`}>
-                {catalog.name}
-              </h3>
-            )}
-
-            <div className="flex items-center gap-2 mb-4">
-              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isDark ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-50 text-blue-700'} uppercase`}>
-                {catalog.type}
-              </span>
-              <span className={`text-xs ${subTextClass}`}>• {catalog.size}</span>
-            </div>
-
-            <div className={`pt-4 border-t ${borderClass} flex justify-between`}>
-              <div className="flex flex-col">
-                <span className={`text-[10px] font-bold ${subTextClass} uppercase`}>Items</span>
-                <span className={`text-sm font-bold ${textClass}`}>{catalog.items} files</span>
-              </div>
-              <div className="flex flex-col text-right">
-                <span className={`text-[10px] font-bold ${subTextClass} uppercase`}>Synced</span>
-                <span className={`text-sm font-bold ${textClass}`}>{catalog.lastSync}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 
   const renderTokenUsageSection = () => (
     <div className="space-y-6">

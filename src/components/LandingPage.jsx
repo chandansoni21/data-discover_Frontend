@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  ChevronLeft, ChevronRight, Shield, Zap, Cpu, Globe, BarChart3, Users,
-  Play, ArrowRight, Check, Star, X, Mail, Phone, Building, User,
-  Sparkles, MessageSquare, Database, Lock, Award, TrendingUp, Clock
+  Shield, Zap, Cpu, Globe, Play, ArrowRight, Check, Star, X, Mail, Phone, Building, User,
+  MessageSquare, Database, TrendingUp, Clock
 } from 'lucide-react';
 import logo from '../Assets/lomgo.png';
-import { useMsal } from "@azure/msal-react";
-import { loginRequest } from "../authConfig";
-import axios from "axios";
+
 import UploadModal from './UploadModal';
 
 const domainCards = [
@@ -126,9 +124,6 @@ const testimonials = [
 ];
 
 export default function LandingPage() {
-  const [selectedDomain, setSelectedDomain] = useState('finance');
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [autoSlide, setAutoSlide] = useState(true);
   const [isVisible, setIsVisible] = useState(false);
   const [showDemoModal, setShowDemoModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -141,60 +136,20 @@ export default function LandingPage() {
     message: ''
   });
   const [demoSubmitted, setDemoSubmitted] = useState(false);
-  const { instance } = useMsal();
+  const navigate = useNavigate();
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
 
-  function getUserEmail() {
-    const keys = Object.keys(sessionStorage);
-    for (const key of keys) {
-      if (key.includes('login.windows.net')) {
-        const data = JSON.parse(sessionStorage.getItem(key));
-        if (data && data.username) return data.username;
-      }
-    }
-    return null;
-  }
-
-  function getUserName() {
-    const keys = Object.keys(sessionStorage);
-    for (const key of keys) {
-      if (key.includes('login.windows.net')) {
-        const data = JSON.parse(sessionStorage.getItem(key));
-        if (data && data.name) return data.name;
-      }
-    }
-    return null;
-  }
-
-  const handleMicrosoftLogin = () => {
-    instance.loginPopup(loginRequest)
-      .then((response) => {
-        sessionStorage.setItem('msalToken', response.accessToken);
-        let userName = getUserName();
-        let userEmail = getUserEmail();
-        sessionStorage.setItem('email', userEmail);
-
-        if (process.env.REACT_APP_BACKEND_URL) {
-          axios.post(`${process.env.REACT_APP_BACKEND_URL}/auth/login`, {
-            name: userName,
-            email: userEmail,
-          })
-            .then(() => window.location.href = '/home')
-            .catch(() => window.location.href = '/home');
-        } else {
-          window.location.href = '/home';
-        }
-      })
-      .catch((error) => console.error("Login failed:", error));
+  const handleLogin = () => {
+    navigate('/login');
   };
 
   const handleExploreNow = (card) => {
     // Store the selected domain ID and trigger login
     sessionStorage.setItem('pendingDomainId', card.id);
-    handleMicrosoftLogin();
+    handleLogin();
   };
 
   const handleUploadComplete = (data) => {
@@ -204,7 +159,7 @@ export default function LandingPage() {
       domain: selectedDomainForUpload,
       ...data
     }));
-    handleMicrosoftLogin();
+    handleLogin();
   };
 
   const handleDemoSubmit = (e) => {
@@ -218,19 +173,7 @@ export default function LandingPage() {
     }, 2000);
   };
 
-  useEffect(() => {
-    if (!autoSlide) return;
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => {
-        const nextIndex = (prev + 1) % domainCards.length;
-        setSelectedDomain(domainCards[nextIndex].id);
-        return nextIndex;
-      });
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [autoSlide]);
 
-  const selectedCard = domainCards.find(card => card.id === selectedDomain);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 text-gray-900 overflow-x-hidden">
@@ -278,7 +221,7 @@ export default function LandingPage() {
               Schedule Demo
             </button>
             <button
-              onClick={handleMicrosoftLogin}
+              onClick={handleLogin}
               className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-blue-500/25 hover:scale-[1.02] transition-all duration-300 text-sm"
             >
               Get Started
@@ -311,7 +254,7 @@ export default function LandingPage() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
-                onClick={handleMicrosoftLogin}
+                onClick={handleLogin}
                 className="group px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl hover:shadow-2xl hover:shadow-blue-500/30 hover:scale-[1.02] transition-all duration-300"
               >
                 <span className="flex items-center justify-center gap-2">
@@ -494,7 +437,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
-              onClick={handleMicrosoftLogin}
+              onClick={handleLogin}
               className="px-8 py-4 bg-white text-blue-600 font-semibold rounded-xl hover:shadow-xl hover:scale-[1.02] transition-all duration-300"
             >
               Start Free Trial
@@ -529,7 +472,7 @@ export default function LandingPage() {
               <h4 className="font-semibold text-lg mb-4 text-blue-400">Solutions</h4>
               <ul className="space-y-3 text-gray-400 text-sm">
                 {['Financial Services', 'Healthcare', 'Retail', 'Manufacturing'].map(item => (
-                  <li key={item}><a href="#" className="hover:text-white transition-colors">{item}</a></li>
+                  <li key={item}><button type="button" className="hover:text-white transition-colors">{item}</button></li>
                 ))}
               </ul>
             </div>
@@ -537,7 +480,7 @@ export default function LandingPage() {
               <h4 className="font-semibold text-lg mb-4 text-blue-400">Company</h4>
               <ul className="space-y-3 text-gray-400 text-sm">
                 {['About Us', 'Careers', 'Blog', 'Contact'].map(item => (
-                  <li key={item}><a href="#" className="hover:text-white transition-colors">{item}</a></li>
+                  <li key={item}><button type="button" className="hover:text-white transition-colors">{item}</button></li>
                 ))}
               </ul>
             </div>
@@ -545,7 +488,7 @@ export default function LandingPage() {
               <h4 className="font-semibold text-lg mb-4 text-blue-400">Legal</h4>
               <ul className="space-y-3 text-gray-400 text-sm">
                 {['Privacy Policy', 'Terms of Service', 'Security', 'Compliance'].map(item => (
-                  <li key={item}><a href="#" className="hover:text-white transition-colors">{item}</a></li>
+                  <li key={item}><button type="button" className="hover:text-white transition-colors">{item}</button></li>
                 ))}
               </ul>
             </div>
