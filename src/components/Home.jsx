@@ -5,13 +5,14 @@ import {
   ChevronRight, Activity, BarChart3,
   Sparkles, Users, Brain, ChevronLeft,
   Home as HomeIcon, Coins, History, Moon, Sun,
-  FolderOpen, Edit3, Trash2, Check
+  FolderOpen, Edit3, Trash2, Check, MoreVertical
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import UploadModal from './UploadModal';
 import Catalogs from './Catalogs';
 import logo from '../Assets/lomgo.png';
 import { chatHistory, activeConversations } from '../data/mockData';
+import { IDManager } from '../utils/api';
 
 // Domain data
 const domains = [
@@ -55,7 +56,14 @@ export default function Home() {
 
   const [activeSection, setActiveSection] = useState('home');
   const [greeting, setGreeting] = useState('');
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
+  useEffect(() => {
+    // Generate new Trace ID for Home context
+    IDManager.generateNewTraceId();
+  }, []);
 
   // Chat flow states
   // Chat flow states
@@ -105,10 +113,11 @@ export default function Home() {
       fileType: uploadData.fileType,
       visibility: uploadData.visibility,
       file: uploadData.file,
-      isUploadComplete: true
+      isUploadComplete: true,
+      dbName: uploadData.db_name || selectedDomain?.name // Ensure we capture the DB name if available
     };
     sessionStorage.setItem('activeChatSession', JSON.stringify(sessionData));
-    navigate('/chat');
+    navigate(`/chat/${encodeURIComponent(sessionData.dbName)}`);
   };
 
 
@@ -154,10 +163,11 @@ export default function Home() {
       fileType: chat.fileType || 'pdf',
       visibility: 'private',
       isUploadComplete: true,
-      existingChat: chat
+      existingChat: chat,
+      dbName: chat.domain || domainObj.name // Use chat domain or mapped domain name as dbName
     };
     sessionStorage.setItem('activeChatSession', JSON.stringify(sessionData));
-    navigate('/chat');
+    navigate(`/chat/${encodeURIComponent(sessionData.dbName)}`);
   };
 
 
@@ -297,7 +307,7 @@ export default function Home() {
   const renderHomeSection = () => (
     <>
       {/* Greeting Header */}
-      <div className="mb-8">
+      <div className="mb-8 flex justify-between">
         <div className="flex items-center gap-3 mb-2">
           <Sparkles className="w-6 h-6 text-yellow-500" />
           <h1 className={`text-4xl font-bold ${isDark
@@ -306,16 +316,25 @@ export default function Home() {
             {greeting}, {userName}!
           </h1>
         </div>
-        <p className={`text-lg ${subTextClass}`}>Here's what's happening with your AI conversations</p>
+        {/* <p className={`text-lg ${subTextClass}`}>Here's what's happening with your AI conversations</p> */}
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:shadow-xl transition-all hover:scale-105"
+        >
+          <Plus className="w-5 h-5 p-1" />
+          <span className="font-semibold">
+            {selectedDomain ? `New Chat for ${selectedDomain.name}` : 'New Chat'}
+          </span>
+        </button>
       </div>
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         {[
-          { label: 'Active Conversations', value: activeChats.length, icon: Activity, color: 'blue', sub: 'Live right now' },
           { label: 'Catalogs Created', value: tokenUsage.databasesCreated, icon: Database, color: 'emerald', sub: 'Across all domains' },
           { label: 'Total Queries', value: tokenUsage.queriesProcessed.toLocaleString(), icon: BarChart3, color: 'purple', sub: 'Processed this month' },
-          { label: 'Total Catalogue', value: tokenUsage.totalCatalogues, icon: Database, color: 'blue', sub: 'Overall count' },
+          { label: 'Active Conversations', value: activeChats.length, icon: Activity, color: 'blue', sub: 'Live right now' },
+          { label: 'Token Usage', value: tokenUsage.used.toLocaleString(), icon: Coins, color: 'amber', sub: 'Total tokens consumed' },
         ].map((stat, idx) => {
           const IconComponent = stat.icon;
           return (
@@ -334,13 +353,12 @@ export default function Home() {
       </div>
 
       {/* Start New Chat Section */}
-      <div className="mb-8">
+      {/* <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Brain className="w-6 h-6 text-blue-600" />
             <h2 className={`text-2xl font-bold ${textClass}`}>Start New Chat</h2>
           </div>
-
           {selectedDomain && (
             <button
               onClick={() => setShowUploadModal(true)}
@@ -351,7 +369,7 @@ export default function Home() {
             </button>
           )}
         </div>
-      </div>
+      </div> */}
 
       {/* Active Chats */}
       <div className="mb-8">
@@ -360,9 +378,6 @@ export default function Home() {
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <h2 className={`text-2xl font-bold ${textClass}`}>Active Conversations</h2>
           </div>
-          <span className={`text-sm ${subTextClass} ${isDark ? 'bg-gray-700' : 'bg-gray-100'} px-3 py-1 rounded-full`}>
-            {activeChats.filter(chat => !selectedDomain || chat.domain === selectedDomain.name).length} live chats
-          </span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -436,7 +451,7 @@ export default function Home() {
                     </div>
                   </div>
                   <button className={`w-full py-2.5 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textClass} rounded-xl font-medium transition-colors`}>
-                    Join Conversation
+                    Resume Conversation
                   </button>
                 </div>
               </div>
@@ -479,8 +494,8 @@ export default function Home() {
           {[
             { id: 'home', label: 'Home', icon: HomeIcon },
             { id: 'catalogs', label: 'Catalogs', icon: FolderOpen },
-            { id: 'tokens', label: 'Token Usage', icon: Coins },
             { id: 'history', label: 'Chat History', icon: History },
+            { id: 'tokens', label: 'Token Usage', icon: Coins },
           ].map((item) => {
             const IconComponent = item.icon;
             return (
@@ -499,19 +514,8 @@ export default function Home() {
           })}
         </nav>
 
-        {/* Theme Toggle */}
-        <div className="px-4 pb-2">
-          <button
-            onClick={toggleTheme}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all"
-          >
-            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            {!sidebarCollapsed && <span className="text-sm">{isDark ? 'Light Mode' : 'Dark Mode'}</span>}
-          </button>
-        </div>
-
         {/* Collapse Button */}
-        <div className="p-4 border-t border-white/10">
+        <div className="p-1 border-t border-white/10">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="w-full flex items-center justify-center gap-2 px-4 py-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all"
@@ -522,25 +526,58 @@ export default function Home() {
         </div>
 
         {/* User Section */}
-        <div className="p-4 border-t border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-white" />
+        <div className="p-4 border-t border-white/10 relative">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <User className="w-5 h-5 text-white" />
+              </div>
+              {!sidebarCollapsed && (
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">{userName}</p>
+                  <p className="text-xs text-gray-400 truncate">{sessionStorage.getItem('email') || 'user@example.com'}</p>
+                </div>
+              )}
             </div>
+
             {!sidebarCollapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{userName}</p>
-                <p className="text-xs text-gray-400 truncate">{sessionStorage.getItem('email') || 'user@example.com'}</p>
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+
+                {showUserMenu && (
+                  <div className={`absolute bottom-full right-0 mb-2 w-48 rounded-xl shadow-xl border overflow-hidden z-50 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} animate-in fade-in slide-in-from-bottom-2`}>
+                    {/* Theme Toggle */}
+                    <button
+                      onClick={() => {
+                        toggleTheme();
+                        setShowUserMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-gray-50 text-gray-700'}`}
+                    >
+                      {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                      <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+                    </button>
+
+                    <div className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`} />
+
+                    {/* Logout */}
+                    <button
+                      onClick={handleLogout}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 transition-colors ${isDark ? 'hover:bg-red-500/10' : 'hover:bg-red-50'}`}
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
-          <button
-            onClick={handleLogout}
-            className={`w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all`}
-          >
-            <LogOut className="w-4 h-4" />
-            {!sidebarCollapsed && <span className="text-sm">Logout</span>}
-          </button>
         </div>
       </aside>
 

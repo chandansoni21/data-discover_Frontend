@@ -1,17 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Send, X, ArrowLeft, Download, Share2, Lock, Globe,
   LayoutDashboard, MessageSquare, Sliders, ChevronLeft, ChevronRight,
   User, Sparkles, Mic, MicOff, Languages, Moon, Sun,
-  Copy, ThumbsUp, ThumbsDown, RotateCcw, FileText, UserPlus, Edit3, Trash2, Check
+  Copy, ThumbsUp, ThumbsDown, RotateCcw, FileText, UserPlus, Edit3, Trash2, Check, MoreVertical
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import Dashboard from './Dashboard';
 import DocumentSummary from './DocumentSummary';
 import { exportChatToPDF } from '../utils/pdfExport';
 import logo from '../Assets/lomgo.png';
-import { API } from '../utils/api';
+import { API, IDManager } from '../utils/api';
 import PDFViewer from './PDFViewer';
+import Catalogs from './Catalogs';
 
 // Language options
 const languages = [
@@ -55,12 +57,21 @@ export default function ChatInterface({
   const [likedMessages, setLikedMessages] = useState([]);
   const [dislikedMessages, setDislikedMessages] = useState([]);
   const [copiedMessageId, setCopiedMessageId] = useState(null);
+
+  // Trace ID management for Chat
+  useEffect(() => {
+    // Generate new Trace ID only when DB context changes
+    IDManager.generateNewTraceId();
+  }, [dbName, domain?.name]); // Dependency on DB identifier
+
   const [shareLinkCopied, setShareLinkCopied] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [selectedPdf, setSelectedPdf] = useState(null);
   const [dbFiles, setDbFiles] = useState([]);
   const [fileLoading, setFileLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const navigate = useNavigate();
 
   // Initialize with welcome message only after upload complete
   useEffect(() => {
@@ -316,7 +327,7 @@ export default function ChatInterface({
                   {/* Avatar */}
                   <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${message.type === 'user'
                     ? 'bg-gradient-to-br from-blue-500 to-purple-600'
-                    : 'bg-gradient-to-br from-emerald-400 to-cyan-500'
+                    : 'bg-transparent'
                     }`}>
                     {message.type === 'user' ? (
                       <User className="w-5 h-5 text-white" />
@@ -412,7 +423,7 @@ export default function ChatInterface({
             {isLoading && (
               <div className="flex justify-start">
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-transparent flex items-center justify-center">
                     <img src={logo} alt="AI" className="w-6 h-6 object-contain" />
                   </div>
                   <div className={`${cardBgClass} border ${borderClass} px-5 py-4 rounded-2xl rounded-tl-md shadow-sm`}>
@@ -556,9 +567,9 @@ export default function ChatInterface({
                     </button>
                   </div>
                 </div>
-                <p className={`text-xs ${subTextClass} mt-2 text-center`}>
+                {/* <p className={`text-xs ${subTextClass} mt-2 text-center`}>
                   Press Enter to send • ↑ for previous • {languages.find(l => l.code === selectedLanguage)?.name || 'English'}
-                </p>
+                </p> */}
               </div>
             </div>
           )}
@@ -776,6 +787,8 @@ export default function ChatInterface({
             </div>
           </div>
         );
+      case 'catalog':
+        return <Catalogs isDark={isDark} />;
       case 'settings':
         return renderSettings();
       default:
@@ -805,6 +818,13 @@ export default function ChatInterface({
                 </div>
               </div>
             )}
+            <button
+              onClick={() => navigate('/home')}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors ml-auto"
+              title="Go to Home"
+            >
+              <img src={logo} alt="Home" className="w-6 h-6 object-contain" />
+            </button>
           </div>
         </div>
 
@@ -814,7 +834,7 @@ export default function ChatInterface({
             { id: 'dashboard', label: showDashboard ? 'Dashboard' : 'Summary', icon: LayoutDashboard },
             { id: 'preview', label: 'Document Preview', icon: FileText },
             { id: 'chatbot', label: 'Chatbot', icon: MessageSquare },
-            { id: 'settings', label: 'Settings', icon: Sliders },
+            // { id: 'catalog', label: 'Give Catalog', icon: LayoutDashboard },
           ].map((item) => {
             const IconComponent = item.icon;
             return (
@@ -832,6 +852,8 @@ export default function ChatInterface({
             );
           })}
         </nav>
+
+
 
         {/* Theme Toggle */}
         <div className="px-4 pb-2">
@@ -856,7 +878,7 @@ export default function ChatInterface({
         </div>
 
         {/* File Info */}
-        {!sidebarCollapsed && (
+        {/* {!sidebarCollapsed && (
           <div className="p-4 border-t border-white/10">
             <div className="p-3 bg-white/5 rounded-xl">
               <div className="flex items-center gap-3">
@@ -870,7 +892,7 @@ export default function ChatInterface({
               </div>
             </div>
           </div>
-        )}
+        )} */}
       </aside>
 
       {/* Main Content */}
@@ -911,17 +933,7 @@ export default function ChatInterface({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                if (window.confirm('Are you sure you want to delete this conversation? This cannot be undone.')) {
-                  onClose(); // In a real app, you'd also delete from backend/state
-                }
-              }}
-              className={`p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors`}
-              title="Delete Conversation"
-            >
-              <Trash2 className="w-5 h-5" />
-            </button>
+
             <button
               onClick={() => setShowParticipantModal(true)}
               className={`p-2 ${subTextClass} ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-lg transition-colors`}
@@ -929,28 +941,64 @@ export default function ChatInterface({
             >
               <UserPlus className="w-5 h-5" />
             </button>
-            <button
-              onClick={handleDownloadChat}
-              disabled={messages.length === 0}
-              className={`p-2 ${subTextClass} ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-lg transition-colors disabled:opacity-50`}
-              title="Download chat as PDF"
-            >
-              <Download className="w-5 h-5" />
-            </button>
+
+            {/* More Actions Dropdown */}
             <div className="relative">
               <button
-                onClick={handleShare}
-                className={`p-2 ${shareLinkCopied ? 'text-green-500 bg-green-500/10' : subTextClass} ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-lg transition-all duration-300 active:scale-90`}
-                title="Share link to this chat"
+                onClick={() => setShowActionsMenu(!showActionsMenu)}
+                className={`p-2 ${subTextClass} ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-lg transition-colors`}
+                title="More actions"
               >
-                {shareLinkCopied ? <Check className="w-5 h-5 animate-in zoom-in-50" /> : <Share2 className="w-5 h-5" />}
+                <MoreVertical className="w-5 h-5" />
               </button>
-              {shareLinkCopied && (
-                <div className="absolute top-full right-0 mt-2 py-1 px-3 bg-green-500 text-white text-[10px] font-bold rounded-lg shadow-lg whitespace-nowrap animate-in fade-in slide-in-from-top-2">
-                  Link Copied!
+
+              {showActionsMenu && (
+                <div className={`absolute right-0 top-full mt-2 w-56 rounded-xl shadow-xl border overflow-hidden z-50 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} animate-in fade-in zoom-in-95 duration-200`}>
+
+                  {/* Share Option */}
+                  <button
+                    onClick={() => {
+                      handleShare();
+                      setTimeout(() => setShowActionsMenu(false), 1500);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${shareLinkCopied ? 'text-green-500 bg-green-500/10' : isDark ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-gray-50 text-gray-700'}`}
+                  >
+                    {shareLinkCopied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+                    <span>{shareLinkCopied ? 'Link Copied!' : 'Share Chat'}</span>
+                  </button>
+
+                  {/* Download Option */}
+                  <button
+                    onClick={() => {
+                      handleDownloadChat();
+                      setShowActionsMenu(false);
+                    }}
+                    disabled={messages.length === 0}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors disabled:opacity-50 ${isDark ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-gray-50 text-gray-700'}`}
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download PDF</span>
+                  </button>
+
+                  <div className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`} />
+
+                  {/* Delete Option */}
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to delete this conversation? This cannot be undone.')) {
+                        onClose();
+                      }
+                      setShowActionsMenu(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 transition-colors ${isDark ? 'hover:bg-red-500/10' : 'hover:bg-red-50'}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Conversation</span>
+                  </button>
                 </div>
               )}
             </div>
+
             <button
               onClick={onClose}
               className={`p-2 ${subTextClass} ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-lg transition-colors`}

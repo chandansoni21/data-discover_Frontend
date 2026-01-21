@@ -1,9 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Database, FileText, FileSpreadsheet, Trash2, X, Check } from 'lucide-react';
-import { API } from '../utils/api';
-import ChatInterface from './ChatInterface';
+import { useNavigate } from 'react-router-dom';
+import { API, IDManager } from '../utils/api';
 
 export default function Catalogs({ isDark }) {
+  const navigate = useNavigate();
+  useEffect(() => {
+    // New Trace ID for Catalog view
+    IDManager.generateNewTraceId();
+  }, []);
   const [catalogs, setCatalogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState('private'); // 'private' or 'public'
@@ -94,25 +99,31 @@ export default function Catalogs({ isDark }) {
   const subTextClass = isDark ? 'text-gray-400' : 'text-gray-600';
 
   const handleCatalogClick = (catalog) => {
-    setSelectedCatalog(catalog);
+    const visibility = catalog.visibility === 'global' ? 'public' : 'local';
+    const folderType = catalog.folder_type?.toLowerCase() || '';
+
+    // PDF and Word/Text files go to standard chat
+    if (folderType.includes('pdf') || folderType.includes('word') || folderType.includes('docx') || folderType.includes('txt')) {
+      // Save session info like ChatPage expects
+      sessionStorage.setItem('activeChatSession', JSON.stringify({
+        dbName: catalog.db_name,
+        fileType: catalog.folder_type,
+        visibility: catalog.visibility === 'global' ? 'public' : 'private',
+        isUploadComplete: true
+      }));
+      navigate(`/chat/${encodeURIComponent(catalog.db_name)}`);
+    } else {
+      // Excel/SQL and others go to Unified Chat
+      navigate(`/unified-chat/${encodeURIComponent(catalog.db_name)}?visibility=${visibility}`);
+    }
   };
 
-  // If a catalog is selected, show ChatInterface
-  if (selectedCatalog) {
-    return (
-      <ChatInterface
-        dbName={selectedCatalog.db_name}
-        visibility={selectedCatalog.visibility}
-        fileType={selectedCatalog.folder_type}
-        isUploadComplete={true}
-        onClose={() => setSelectedCatalog(null)}
-      />
-    );
-  }
+  // Removed inline ChatInterface rendering to support page-based navigation and persistence
+
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
-      <div className="flex items-center justify-between">
+      <div className={`flex items-center justify-between sticky top-0 z-10 py-4 ${isDark ? 'bg-gray-900' : 'bg-white/80'} backdrop-blur-md`}>
         <div className="flex items-center gap-3">
           <Database className="w-8 h-8 text-blue-500" />
           <h2 className={`text-3xl font-bold ${textClass}`}>Data Catalogs</h2>
@@ -184,7 +195,7 @@ export default function Catalogs({ isDark }) {
                     </div>
                   </div>
 
-                  <h3 className={`font-bold ${textClass} text-lg mb-1 truncate`} title={catalog.db_name}>{catalog.db_name}</h3>
+                  <h3 className={`font-medium ${textClass} text-lg mb-1 truncate`} title={catalog.db_name}>{catalog.db_name}</h3>
 
                   <div className="flex items-center gap-2 mb-4">
                     <span className={`px-2.5 py-1 ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-gray-100 text-gray-700'} text-[10px] font-bold rounded-lg border ${isDark ? 'border-slate-700' : 'border-gray-200'}`}>

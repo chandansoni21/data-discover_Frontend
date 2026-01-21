@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { X, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 // Set up the worker
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -23,35 +24,35 @@ export default function PDFViewer({ url, onClose, isDark }) {
     const rotate = () => setRotation(prev => (prev + 90) % 360);
 
     return (
-        <div className={`flex flex-col h-full bg-gray-100 dark:bg-gray-900`}>
-            {/* Header with Red Close Button */}
+        <div className={`flex flex-col h-full bg-sky-50/30 dark:bg-slate-900`}>
+            {/* Header with Light Blue Styling */}
             <div className="flex-shrink-0">
                 <button
-                    className={`py-3 w-full font-medium text-sm ${isDark ? 'bg-gradient-to-r from-red-700 to-red-900 hover:from-red-800 hover:to-red-950' : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'} text-white transition-all duration-200 shadow-md flex items-center justify-center gap-2`}
+                    className="py-3 w-full font-bold text-sm bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white transition-all duration-300 shadow-lg flex items-center justify-center gap-2"
                     onClick={onClose}
                 >
-                    <X className="w-4 h-4" />
+                    <X className="w-4 h-4 text-white" />
                     Close PDF Viewer
                 </button>
             </div>
 
-            {/* Toolbar */}
-            <div className={`flex items-center justify-between p-2 border-b ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} sticky top-0 z-10`}>
+            {/* Toolbar - Light Blue Theme */}
+            <div className="flex items-center justify-between p-3 border-b border-blue-200/50 bg-sky-500 text-white sticky top-0 z-10 shadow-sm">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium ml-2">
+                    <span className="text-sm font-bold ml-2">
                         {numPages ? `${numPages} Pages` : 'Loading...'}
                     </span>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={zoomOut} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded" title="Zoom Out">
-                        <ZoomOut className="w-4 h-4" />
+                <div className="flex items-center gap-3">
+                    <button onClick={zoomOut} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title="Zoom Out">
+                        <ZoomOut className="w-4 h-4 text-white" />
                     </button>
-                    <span className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{Math.round(scale * 100)}%</span>
-                    <button onClick={zoomIn} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded" title="Zoom In">
-                        <ZoomIn className="w-4 h-4" />
+                    <span className="text-xs bg-white/20 px-2 py-1 rounded-md font-bold">{Math.round(scale * 100)}%</span>
+                    <button onClick={zoomIn} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title="Zoom In">
+                        <ZoomIn className="w-4 h-4 text-white" />
                     </button>
-                    <button onClick={rotate} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded" title="Rotate">
-                        <RotateCw className="w-4 h-4" />
+                    <button onClick={rotate} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title="Rotate">
+                        <RotateCw className="w-4 h-4 text-white" />
                     </button>
                 </div>
             </div>
@@ -67,7 +68,14 @@ export default function PDFViewer({ url, onClose, isDark }) {
                 <Document
                     file={url}
                     onLoadSuccess={onDocumentLoadSuccess}
-                    onLoadError={(error) => console.error('Error loading PDF:', error)}
+                    onLoadError={(error) => {
+                        console.error('Error loading PDF:', error);
+                        if (error.status === 403) {
+                            toast.error('Session link expired or forbidden. Please try refreshing.');
+                        } else {
+                            toast.error('Failed to load PDF document');
+                        }
+                    }}
                     className="flex flex-col items-center gap-4"
                 >
                     {numPages && Array.from(new Array(numPages), (el, index) => (

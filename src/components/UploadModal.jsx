@@ -1,11 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     X, Upload, FileText, FileSpreadsheet, Database, FileJson,
     Plug, Globe, Lock, CheckCircle, AlertCircle, File, Server,
     Key, User, Shield, Eye, EyeOff, Loader2, FolderOpen, Clock
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { API } from '../utils/api';
+import { API, IDManager } from '../utils/api';
 
 const fileTypes = [
     { id: 'pdf', name: 'PDF', icon: FileText, color: 'from-red-500 to-rose-600', accept: '.pdf', description: 'PDF Documents' },
@@ -39,7 +39,7 @@ export default function UploadModal({
         username: '',
         password: '',
         databaseName: '',
-        port: '5432'
+        port: ''
     });
 
     // API Configuration state
@@ -55,6 +55,12 @@ export default function UploadModal({
     const folderInputRef = useRef(null);
     const [uploadMode, setUploadMode] = useState('file'); // 'file' or 'folder'
     const [selectedFiles, setSelectedFiles] = useState([]); // For folder upload
+
+    useEffect(() => {
+        if (isOpen) {
+            IDManager.generateNewTraceId();
+        }
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -180,7 +186,20 @@ export default function UploadModal({
                 });
             }, 500);
 
-            const response = await API.upload.createDatabase(formData);
+            let response;
+            if (selectedFileType === 'sql') {
+                const sqlFormData = new FormData();
+                sqlFormData.append('hostname', sqlCredentials.hostname);
+                sqlFormData.append('port', sqlCredentials.port);
+                sqlFormData.append('db_name', sqlCredentials.databaseName);
+                sqlFormData.append('username', sqlCredentials.username);
+                sqlFormData.append('password', sqlCredentials.password);
+                sqlFormData.append('visibility', visibility === 'public' ? 'global' : 'local');
+
+                response = await API.upload.connectSql(sqlFormData);
+            } else {
+                response = await API.upload.createDatabase(formData);
+            }
 
             clearInterval(progressInterval);
             setUploadProgress(100);
@@ -192,6 +211,7 @@ export default function UploadModal({
             // Handle Success or Failure
             setUploadResult({
                 ...response.data,
+                eta: response.data.eta || "Ready", // Default for SQL where ETA might be missing
                 isError: isFailed
             });
             setIsUploading(false);
@@ -211,7 +231,7 @@ export default function UploadModal({
         setIsUploading(false);
         setUploadProgress(0);
         setError(null);
-        setSqlCredentials({ hostname: '', username: '', password: '', databaseName: '', port: '5432' });
+        setSqlCredentials({ hostname: '', username: '', password: '', databaseName: '', port: '' });
         setApiConfig({ endpoint: '', apiKey: '', method: 'GET' });
         onClose();
     };
@@ -341,7 +361,7 @@ export default function UploadModal({
                                             type="text"
                                             value={sqlCredentials.port}
                                             onChange={(e) => setSqlCredentials({ ...sqlCredentials, port: e.target.value })}
-                                            placeholder="5432"
+                                            placeholder=""
                                             className={`w-full px-4 py-3 rounded-xl border ${borderClass} ${inputBgClass} ${textClass} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
                                         />
                                     </div>

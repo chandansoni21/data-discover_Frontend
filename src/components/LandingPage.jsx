@@ -15,7 +15,7 @@ const domainCards = [
     description: 'AI-powered banking and finance solutions',
     color: 'from-emerald-500 to-teal-600',
     bgColor: 'from-emerald-500/10 to-teal-500/10',
-    icon: '💰',
+    icon: '',
     features: [
       'Customer Service Automation',
       'KYC/AML Compliance',
@@ -29,7 +29,7 @@ const domainCards = [
     description: 'Intelligent healthcare solutions',
     color: 'from-blue-500 to-indigo-600',
     bgColor: 'from-blue-500/10 to-indigo-500/10',
-    icon: '🏥',
+    icon: '',
     features: [
       'Patient Engagement',
       'Clinical Analytics',
@@ -43,7 +43,7 @@ const domainCards = [
     description: 'Transform customer experiences',
     color: 'from-orange-500 to-pink-600',
     bgColor: 'from-orange-500/10 to-pink-500/10',
-    icon: '🛒',
+    icon: '',
     features: [
       'Smart Shopping Assistant',
       'Customer Analytics',
@@ -57,7 +57,7 @@ const domainCards = [
     description: 'Smart factory solutions',
     color: 'from-slate-500 to-cyan-600',
     bgColor: 'from-slate-500/10 to-cyan-500/10',
-    icon: '🏭',
+    icon: '',
     features: [
       'Predictive Maintenance',
       'Quality Inspection',
@@ -71,7 +71,7 @@ const domainCards = [
     description: 'Next-generation learning',
     color: 'from-violet-500 to-purple-600',
     bgColor: 'from-violet-500/10 to-purple-500/10',
-    icon: '🎓',
+    icon: '',
     features: [
       'Student Support',
       'Learning Analytics',
@@ -85,7 +85,7 @@ const domainCards = [
     description: 'AI-powered legal research',
     color: 'from-amber-500 to-orange-600',
     bgColor: 'from-amber-500/10 to-orange-500/10',
-    icon: '⚖️',
+    icon: '',
     features: [
       'Legal Research',
       'Contract Analysis',
@@ -102,26 +102,7 @@ const stats = [
   { value: '4.9/5', label: 'Customer Rating', icon: Star },
 ];
 
-const testimonials = [
-  {
-    quote: "DataDiscover.AI transformed how we handle customer queries. Response time dropped by 80%.",
-    author: "Sarah Chen",
-    role: "CTO, FinServe Inc.",
-    avatar: "SC"
-  },
-  {
-    quote: "The AI accuracy is remarkable. It understands context better than any tool we've used.",
-    author: "Michael Foster",
-    role: "VP Engineering, HealthFirst",
-    avatar: "MF"
-  },
-  {
-    quote: "Implementation was seamless. We saw ROI within the first month.",
-    author: "Emma Watson",
-    role: "Director of AI, RetailMax",
-    avatar: "EW"
-  }
-];
+const testimonials = [];
 
 export default function LandingPage() {
   const [isVisible, setIsVisible] = useState(false);
@@ -205,10 +186,6 @@ export default function LandingPage() {
             </a>
             <a className="text-gray-600 hover:text-blue-600 font-medium transition-colors relative group text-sm" href="#features">
               Features
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-600 group-hover:w-full transition-all duration-300"></span>
-            </a>
-            <a className="text-gray-600 hover:text-blue-600 font-medium transition-colors relative group text-sm" href="#testimonials">
-              Testimonials
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-600 group-hover:w-full transition-all duration-300"></span>
             </a>
           </div>
@@ -393,40 +370,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section id="testimonials" className="px-6 py-20">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-full mb-4">
-              <MessageSquare className="w-4 h-4 text-purple-600" />
-              <span className="text-sm font-semibold text-purple-700">Customer Stories</span>
-            </div>
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Trusted by Industry Leaders</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, idx) => (
-              <div key={idx} className="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-xl transition-all duration-300">
-                <div className="flex items-center gap-1 mb-4">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
-                  ))}
-                </div>
-                <p className="text-gray-600 mb-6 leading-relaxed">"{testimonial.quote}"</p>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                    {testimonial.avatar}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900">{testimonial.author}</div>
-                    <div className="text-sm text-gray-500">{testimonial.role}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* CTA Section */}
       <section className="px-6 py-20 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">

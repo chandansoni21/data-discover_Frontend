@@ -78,7 +78,7 @@ const ForgotPassword = () => {
                 <div className="text-center mb-8">
                     <h2 className="text-3xl font-bold text-white mb-2">
                         {step === 1 && "Reset Password"}
-                        {step === 2 && "Verify O TP"}
+                        {step === 2 && "Verify OTP"}
                         {step === 3 && "New Password"}
                     </h2>
                     <p className="text-emerald-200">
@@ -128,7 +128,7 @@ const ForgotPassword = () => {
                 )}
 
                 {step === 2 && (
-                    <form onSubmit={handleVerifyOtp} className="space-y-6">
+                    <form onSubmit={handleVerifyOtp} className="space-y-8">
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-emerald-100 ml-1">Enter OTP</label>
                             <div className="relative">
