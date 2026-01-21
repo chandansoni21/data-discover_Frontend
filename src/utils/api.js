@@ -143,7 +143,11 @@ export const API = {
         getTablePreview: (db_name, table_name, row_number = 5, visibility = 'local') =>
             apiClient.get(`/api/sql/table/preview?db_name=${db_name}&table_name=${table_name}&row_number=${row_number}&visibility=${visibility}`),
         removeSelectTable: (db_name, table_name) =>
-            apiClient.delete(`/api/sql/remove-select-table?db_name=${db_name}&table_name=${table_name}`),
+            apiClient.delete(`/api/sql/remove-select-table?db_name=${db_name}&table_names=${table_name}`),
+        removeSelectedTables: (db_name, table_names) => {
+            const queryString = table_names.map(name => `table_names=${encodeURIComponent(name)}`).join('&');
+            return apiClient.delete(`/api/sql/remove-select-table?db_name=${db_name}&${queryString}`);
+        },
     }
 };
 

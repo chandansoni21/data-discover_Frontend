@@ -1,0 +1,276 @@
+/* UnifiedChatInterface.css - Enhanced Stylish Tables */
+
+.chat-response-html {
+    width: 100%;
+    margin: 1rem 0;
+    font-family: inherit;
+    line-height: 1.6;
+    overflow-x: auto;
+}
+
+/* Modern Table Container */
+.chat-response-html table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.875rem;
+    text-align: left;
+    border-radius: 12px;
+    border: 1px solid;
+    background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+    box-shadow:
+        0 10px 25px -5px rgba(0, 0, 0, 0.3),
+        0 0 15px rgba(59, 130, 246, 0.1);
+    margin: 1.5rem 0;
+    display: block;
+    overflow-x: auto;
+    max-height: 600px;
+    scrollbar-width: thin;
+    position: relative;
+}
+
+/* Glossy Header */
+.chat-response-html table thead {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+    backdrop-filter: blur(10px);
+    border-bottom: 2px solid rgba(59, 130, 246, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Elegant Headers with icons */
+.chat-response-html table th {
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.75rem;
+    color: #cbd5e1;
+    border-bottom: 2px solid rgba(59, 130, 246, 0.4);
+    white-space: nowrap;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.chat-response-html table th:hover {
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+/* Sort indicator (optional) */
+.chat-response-html table th.sortable::after {
+    content: "↕";
+    margin-left: 0.5rem;
+    opacity: 0.5;
+    font-size: 0.7rem;
+}
+
+/* Cells with subtle animation */
+.chat-response-html table td {
+    padding: 0.875rem 1.25rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.6);
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    color: #e2e8f0;
+    position: relative;
+}
+
+/* Highlight current row */
+.chat-response-html tbody tr {
+    transition: all 0.3s ease;
+    border-left: 3px solid transparent;
+}
+
+/* Enhanced Zebra Striping with gradient */
+.chat-response-html tbody tr:nth-child(even) {
+    background: linear-gradient(90deg, rgba(30, 41, 59, 0.3) 0%, rgba(15, 23, 42, 0.2) 100%);
+}
+
+/* Hover effect with glow */
+.chat-response-html tbody tr:hover {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.1) 100%);
+    border-left: 3px solid #3b82f6;
+    transform: translateX(2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.chat-response-html tbody tr:hover td {
+    color: #93c5fd;
+}
+
+/* First column emphasis */
+.chat-response-html tbody td:first-child {
+    font-weight: 500;
+    color: #60a5fa;
+    border-right: 1px solid rgba(51, 65, 85, 0.4);
+}
+
+/* Last column accent */
+.chat-response-html tbody td:last-child {
+    color: #86efac;
+}
+
+/* Interactive cell hover */
+.chat-response-html table td:hover {
+    background: rgba(59, 130, 246, 0.08);
+    transform: scale(1.02);
+    z-index: 5;
+}
+
+/* Status indicators for specific cell types */
+.chat-response-html table td.success {
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.1);
+    border-left: 2px solid #4ade80;
+}
+
+.chat-response-html table td.warning {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
+    border-left: 2px solid #fbbf24;
+}
+
+.chat-response-html table td.error {
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.1);
+    border-left: 2px solid #f87171;
+}
+
+/* Corner accents */
+.chat-response-html table::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, transparent, rgba(59, 130, 246, 0.2), transparent);
+    border-radius: 14px;
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* Bottom border accent */
+.chat-response-html table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Scrollbar styling */
+.chat-response-html table::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+}
+
+.chat-response-html table::-webkit-scrollbar-track {
+    background: rgba(30, 41, 59, 0.5);
+    border-radius: 4px;
+}
+
+.chat-response-html table::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border-radius: 4px;
+}
+
+.chat-response-html table::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #60a5fa, #a78bfa);
+}
+
+/* Loading skeleton animation */
+.chat-response-html table.loading tr {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .chat-response-html table {
+        font-size: 0.8125rem;
+        border-radius: 8px;
+    }
+
+    .chat-response-html table th,
+    .chat-response-html table td {
+        padding: 0.75rem 1rem;
+    }
+}
+
+/* Light Theme */
+:not(.dark) .chat-response-html table {
+    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+    border-color: #e2e8f0;
+    box-shadow:
+        0 10px 25px -5px rgba(0, 0, 0, 0.08),
+        0 0 15px rgba(59, 130, 246, 0.05);
+}
+
+:not(.dark) .chat-response-html table thead {
+    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    border-bottom-color: rgba(59, 130, 246, 0.2);
+}
+
+:not(.dark) .chat-response-html table th {
+    color: #475569;
+    border-bottom-color: rgba(59, 130, 246, 0.3);
+}
+
+:not(.dark) .chat-response-html table th:hover {
+    color: #2563eb;
+    background: rgba(59, 130, 246, 0.08);
+}
+
+:not(.dark) .chat-response-html table td {
+    color: #334155;
+    border-bottom-color: #e2e8f0;
+}
+
+:not(.dark) .chat-response-html tbody tr:nth-child(even) {
+    background: linear-gradient(90deg, rgba(241, 245, 249, 0.5) 0%, rgba(226, 232, 240, 0.3) 100%);
+}
+
+:not(.dark) .chat-response-html tbody tr:hover {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
+    border-left-color: #3b82f6;
+}
+
+:not(.dark) .chat-response-html tbody tr:hover td {
+    color: #1d4ed8;
+}
+
+:not(.dark) .chat-response-html tbody td:first-child {
+    color: #2563eb;
+}
+
+:not(.dark) .chat-response-html table::-webkit-scrollbar-track {
+    background: rgba(241, 245, 249, 0.5);
+}
+
+/* Table caption styling */
+.chat-response-html table caption {
+    caption-side: bottom;
+    padding: 0.75rem;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    text-align: center;
+    margin-top: 0.5rem;
+}
+
+/* Empty state */
+.chat-response-html table.empty tbody td {
+    text-align: center;
+    padding: 3rem;
+    color: #94a3b8;
+    font-style: italic;
+}

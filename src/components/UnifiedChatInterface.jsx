@@ -11,8 +11,77 @@ import { useTheme } from '../context/ThemeContext';
 import toast from 'react-hot-toast';
 import Plotly from 'plotly.js-dist-min';
 import createPlotlyComponent from 'react-plotly.js/factory';
+import { AgGridReact } from 'ag-grid-react';
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-quartz.css';
+import './UnifiedChatInterface.css';
+
+ModuleRegistry.registerModules([AllCommunityModule]);
 
 const Plot = createPlotlyComponent(Plotly);
+
+// Helper component to render tables using AG Grid
+const ChatTable = ({ html, isDark }) => {
+    const parseData = (htmlString) => {
+        try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlString, 'text/html');
+            const table = doc.querySelector('table');
+            if (!table) return null;
+
+            const headers = Array.from(table.querySelectorAll('thead th, thead td')).map(cell => cell.innerText.trim());
+            const rows = Array.from(table.querySelectorAll('tbody tr')).map(tr => {
+                const cells = Array.from(tr.querySelectorAll('td')).map(td => td.innerText.trim());
+                const rowData = {};
+                headers.forEach((header, index) => {
+                    rowData[header] = cells[index] || '';
+                });
+                return rowData;
+            });
+
+            const columnDefs = headers.map(header => ({
+                field: header,
+                headerName: header,
+                filter: true,
+                sortable: true,
+                resizable: true,
+                flex: 1,
+                minWidth: 150
+            }));
+
+            return { rowData: rows, columnDefs };
+        } catch (e) {
+            console.error("Failed to parse table:", e);
+            return null;
+        }
+    };
+
+    const data = parseData(html);
+    if (!data || data.rowData.length === 0) {
+        return <div className="chat-response-html" dangerouslySetInnerHTML={{ __html: html }} />;
+    }
+
+    return (
+        <div
+            className={isDark ? "ag-theme-quartz-dark" : "ag-theme-quartz"}
+            style={{ height: data.rowData.length > 10 ? '400px' : 'auto', width: '100%', marginTop: '1rem', marginBottom: '1rem' }}
+        >
+            <AgGridReact
+                rowData={data.rowData}
+                columnDefs={data.columnDefs}
+                pagination={data.rowData.length > 5}
+                paginationPageSize={10}
+                domLayout={data.rowData.length > 10 ? 'normal' : 'autoHeight'}
+                defaultColDef={{
+                    filter: true,
+                    sortable: true,
+                    resizable: true,
+                }}
+            />
+        </div>
+    );
+};
 
 const UnifiedChatInterface = ({ dbName, visibility = 'local' }) => {
     const { isDark } = useTheme();
@@ -26,6 +95,8 @@ const UnifiedChatInterface = ({ dbName, visibility = 'local' }) => {
     const [inputValue, setInputValue] = useState('');
 
     // Loading & Error states
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [checkedTables, setCheckedTables] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isTablesLoading, setIsTablesLoading] = useState(false);
     const [isSidebarLoading, setIsSidebarLoading] = useState(false);
@@ -113,6 +184,30 @@ const UnifiedChatInterface = ({ dbName, visibility = 'local' }) => {
         }
     };
 
+    const handleBulkRemove = async () => {
+        if (checkedTables.length === 0) return;
+
+        try {
+            setIsSidebarLoading(true);
+            await API.sql.removeSelectedTables(dbName, checkedTables);
+
+            // If any of the removed tables was active, reset activeTable
+            if (checkedTables.includes(activeTable)) {
+                setActiveTable(null);
+            }
+
+            toast.success(`${checkedTables.length} tables removed successfully`);
+            setCheckedTables([]);
+            setSelectionMode(false);
+            fetchSelectedTables();
+        } catch (err) {
+            console.error('Error removing selected tables:', err);
+            toast.error('Failed to remove selected tables');
+        } finally {
+            setIsSidebarLoading(false);
+        }
+    };
+
     // 4. Preview table content
     const handlePreviewTable = async (tableName, rows = 5) => {
         setIsPreviewLoading(true);
@@ -168,7 +263,8 @@ const UnifiedChatInterface = ({ dbName, visibility = 'local' }) => {
             const response = await API.chat.sendQuery({
                 query: userMsg.text,
                 database: dbName,
-                table_name: activeTable, // Strictly scoped to selected table
+                dataset_id: activeTable,
+                table_name: activeTable,
                 visibility: visibility === 'public' ? 'global' : 'local'
             });
 
@@ -211,6 +307,10 @@ const UnifiedChatInterface = ({ dbName, visibility = 'local' }) => {
         if (dbName) {
             // Generate new Trace ID only when DB context changes
             IDManager.generateNewTraceId();
+
+            // Reset selection state
+            setSelectionMode(false);
+            setCheckedTables([]);
 
             fetchAvailableTables();
             fetchSelectedTables();
@@ -327,9 +427,50 @@ const UnifiedChatInterface = ({ dbName, visibility = 'local' }) => {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-2">
-                    <div className="px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Selected Tables
+                    <div className="px-2 py-2 flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Selected Tables</span>
+                        {selectedTables.length > 0 && (
+                            <button
+                                onClick={() => {
+                                    setSelectionMode(!selectionMode);
+                                    setCheckedTables([]);
+                                }}
+                                className={`text-[10px] font-semibold transition-colors ${selectionMode ? 'text-red-400 hover:text-red-300' : 'text-blue-500 hover:text-blue-400'}`}
+                            >
+                                {selectionMode ? 'Cancel' : 'Manage'}
+                            </button>
+                        )}
                     </div>
+
+                    {selectionMode && selectedTables.length > 0 && (
+                        <div className="px-2 mb-3 space-y-2">
+                            <div className={`flex items-center justify-between p-2 rounded-lg bg-slate-800/50 border ${borderClass}`}>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={checkedTables.length === selectedTables.length && selectedTables.length > 0}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setCheckedTables(selectedTables.map(t => typeof t === 'object' ? t.name : t));
+                                            } else {
+                                                setCheckedTables([]);
+                                            }
+                                        }}
+                                        className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 focus:ring-offset-0 transition-all"
+                                    />
+                                    <span className="text-[10px] font-medium text-slate-400">Select All</span>
+                                </label>
+                                <button
+                                    onClick={handleBulkRemove}
+                                    disabled={checkedTables.length === 0}
+                                    className="px-2 py-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:bg-slate-700 text-white rounded text-[10px] font-bold transition-all shadow-lg shadow-red-900/20"
+                                >
+                                    Remove ({checkedTables.length})
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {isSidebarLoading ? (
                         <div className="flex justify-center p-4"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>
                     ) : (
@@ -338,33 +479,65 @@ const UnifiedChatInterface = ({ dbName, visibility = 'local' }) => {
                                 selectedTables.map((table, i) => {
                                     const tableName = typeof table === 'object' ? table.name : table;
                                     const isActive = activeTable === tableName;
+                                    const isChecked = checkedTables.includes(tableName);
+
                                     return (
                                         <div key={i} className="group relative">
+                                            {selectionMode && (
+                                                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={() => {
+                                                            setCheckedTables(prev =>
+                                                                prev.includes(tableName)
+                                                                    ? prev.filter(t => t !== tableName)
+                                                                    : [...prev, tableName]
+                                                            );
+                                                        }}
+                                                        className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0 focus:ring-offset-0 transition-all"
+                                                    />
+                                                </div>
+                                            )}
                                             <button
-                                                onClick={() => setActiveTable(tableName)}
-                                                className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all ${isActive
+                                                onClick={() => {
+                                                    if (selectionMode) {
+                                                        setCheckedTables(prev =>
+                                                            prev.includes(tableName)
+                                                                ? prev.filter(t => t !== tableName)
+                                                                : [...prev, tableName]
+                                                        );
+                                                    } else {
+                                                        setActiveTable(tableName);
+                                                    }
+                                                }}
+                                                className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all ${selectionMode ? 'pl-9' : ''} ${isActive
                                                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                                    : 'hover:bg-blue-500/10 text-slate-400'
+                                                    : isChecked && selectionMode
+                                                        ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                                        : 'hover:bg-blue-500/10 text-slate-400'
                                                     }`}
                                             >
-                                                <Table className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-500'}`} />
+                                                {!selectionMode && <Table className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-500'}`} />}
                                                 <span className="truncate font-medium pr-6">{tableName}</span>
-                                                {isActive && (
+                                                {isActive && !selectionMode && (
                                                     <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full"></div>
                                                 )}
                                             </button>
 
-                                            {/* Remove button visible on hover */}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleRemoveTable(tableName);
-                                                }}
-                                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md bg-red-500/20 text-red-500 opacity-0 group-hover:opacity-100 hover:bg-red-500 hover:text-white transition-all z-10"
-                                                title="Remove table"
-                                            >
-                                                <Minus className="w-3 h-3" />
-                                            </button>
+                                            {/* Remove button visible on hover - Only in normal mode */}
+                                            {!selectionMode && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleRemoveTable(tableName);
+                                                    }}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md bg-red-500/20 text-red-500 opacity-0 group-hover:opacity-100 hover:bg-red-500 hover:text-white transition-all z-10"
+                                                    title="Remove table"
+                                                >
+                                                    <Minus className="w-3 h-3" />
+                                                </button>
+                                            )}
                                         </div>
                                     );
                                 })
@@ -408,66 +581,91 @@ const UnifiedChatInterface = ({ dbName, visibility = 'local' }) => {
                 </div>
 
                 {/* Messages List */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
-                    {currentMessages.length === 0 && (
-                        <div className="h-full flex flex-col items-center justify-center opacity-50 space-y-4">
-                            <div className="p-6 bg-slate-800/50 rounded-full">
-                                {activeTable ? <Table className="w-12 h-12 text-blue-500" /> : <Search className="w-12 h-12 text-blue-500" />}
-                            </div>
-                            <div className="text-center">
-                                <h3 className="text-xl font-bold">
-                                    {activeTable ? `Isolated Chat: ${activeTable}` : `Select a Table`}
-                                </h3>
-                                <p className="text-sm max-w-md mt-2">
-                                    {activeTable
-                                        ? `Queries sent here will only analyze data from the "${activeTable}" table.`
-                                        : 'Please select a table from the left sidebar to start a focused analysis.'}
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {currentMessages.map((msg) => (
-                        <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] ${msg.type === 'user' ? 'bg-blue-600 rounded-2xl rounded-tr-none px-4 py-3' : `bg-slate-800 border ${borderClass} rounded-2xl rounded-tl-none px-5 py-4`}`}>
-                                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-
-                                {msg.type === 'bot' && msg.charts && <ChartRenderer charts={msg.charts} />}
-
-                                {msg.type === 'bot' && msg.sources && msg.sources.length > 0 && (
-                                    <div className="mt-4 pt-4 border-t border-slate-700">
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Sources Found</p>
-                                        <div className="flex wrap gap-2">
-                                            {msg.sources.map((src, i) => (
-                                                <div key={i} className="px-2 py-1 bg-slate-700/50 border border-slate-600 rounded text-[10px] flex items-center gap-2">
-                                                    <FileText className="w-3 h-3 text-red-400" />
-                                                    {src.file_name} (Page {src.page_numbers})
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className={`text-[10px] mt-2 opacity-50 ${msg.type === 'user' ? 'text-blue-100' : 'text-slate-400'}`}>
-                                    {msg.timestamp.toLocaleTimeString()}
+                <div className="flex-1 overflow-y-auto scrollbar-thin">
+                    <div className="max-w-3xl mx-auto p-6 space-y-6 min-h-full flex flex-col">
+                        {currentMessages.length === 0 && (
+                            <div className="flex-1 flex flex-col items-center justify-center opacity-50 space-y-4 py-20">
+                                <div className="p-6 bg-slate-800/50 rounded-full">
+                                    {activeTable ? <Table className="w-12 h-12 text-blue-500" /> : <Search className="w-12 h-12 text-blue-500" />}
+                                </div>
+                                <div className="text-center">
+                                    <h3 className="text-xl font-bold">
+                                        {activeTable ? `Isolated Chat: ${activeTable}` : `Select a Table`}
+                                    </h3>
+                                    <p className="text-sm max-w-md mt-2">
+                                        {activeTable
+                                            ? `Queries sent here will only analyze data from the "${activeTable}" table.`
+                                            : 'Please select a table from the left sidebar to start a focused analysis.'}
+                                    </p>
                                 </div>
                             </div>
-                        </div>
-                    ))}
-                    {isLoading && (
-                        <div className="flex justify-start">
-                            <div className="bg-slate-800 border border-slate-700 rounded-2xl rounded-tl-none px-5 py-4 flex items-center gap-3">
-                                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                                <span className="text-sm animate-pulse">Analyzing data...</span>
+                        )}
+
+                        {currentMessages.map((msg) => (
+                            <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[90%] ${msg.type === 'user' ? 'bg-blue-600 rounded-2xl rounded-tr-none px-4 py-3' : `bg-slate-800 border ${borderClass} rounded-2xl rounded-tl-none px-5 py-4 w-full`}`}>
+                                    {msg.type === 'bot' && msg.text && msg.text.includes('<table') ? (
+                                        <div className="space-y-4">
+                                            {msg.text.split(/(<table[\s\S]*?<\/table>)/g).map((part, index) => {
+                                                if (part.startsWith('<table')) {
+                                                    return <ChatTable key={index} html={part} isDark={isDark} />;
+                                                }
+                                                if (!part.trim()) return null;
+                                                return (
+                                                    <div
+                                                        key={index}
+                                                        className="text-sm leading-relaxed whitespace-pre-wrap"
+                                                        dangerouslySetInnerHTML={{ __html: part }}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                    ) : msg.type === 'bot' && msg.text && (msg.text.includes('<div') || msg.text.includes('<p')) ? (
+                                        <div
+                                            className="chat-response-html"
+                                            dangerouslySetInnerHTML={{ __html: msg.text }}
+                                        />
+                                    ) : (
+                                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                                    )}
+
+                                    {msg.type === 'bot' && msg.charts && <ChartRenderer charts={msg.charts} />}
+
+                                    {msg.type === 'bot' && msg.sources && msg.sources.length > 0 && (
+                                        <div className="mt-4 pt-4 border-t border-slate-700">
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Sources Found</p>
+                                            <div className="flex wrap gap-2">
+                                                {msg.sources.map((src, i) => (
+                                                    <div key={i} className="px-2 py-1 bg-slate-700/50 border border-slate-600 rounded text-[10px] flex items-center gap-2">
+                                                        <FileText className="w-3 h-3 text-red-400" />
+                                                        {src.file_name} (Page {src.page_numbers})
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className={`text-[10px] mt-2 opacity-50 ${msg.type === 'user' ? 'text-blue-100' : 'text-slate-400'}`}>
+                                        {msg.timestamp.toLocaleTimeString()}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                    <div ref={messagesEndRef} />
+                        ))}
+                        {isLoading && (
+                            <div className="flex justify-start">
+                                <div className="bg-slate-800 border border-slate-700 rounded-2xl rounded-tl-none px-5 py-4 flex items-center gap-3">
+                                    <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                    <span className="text-sm animate-pulse">Analyzing data...</span>
+                                </div>
+                            </div>
+                        )}
+                        <div ref={messagesEndRef} />
+                    </div>
                 </div>
 
                 {/* Input Bar */}
                 <div className={`p-4 border-t ${borderClass} ${cardBgClass}`}>
-                    <div className="max-w-4xl mx-auto flex items-center gap-3 bg-slate-700/30 rounded-2xl p-2 border border-slate-700/50 focus-within:border-blue-500/50 transition-all">
+                    <div className="max-w-3xl mx-auto flex items-center gap-3 bg-slate-700/30 rounded-2xl p-2 border border-slate-700/50 focus-within:border-blue-500/50 transition-all">
                         <textarea
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
