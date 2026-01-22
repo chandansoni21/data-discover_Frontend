@@ -274,3 +274,111 @@
     color: #94a3b8;
     font-style: italic;
 }
+
+/* Markdown Styling for Chat */
+.markdown-container {
+    color: #e2e8f0;
+    font-size: 0.875rem;
+    line-height: 1.625;
+}
+
+.markdown-container h1,
+.markdown-container h2,
+.markdown-container h3,
+.markdown-container h4 {
+    color: #f8fafc;
+    font-weight: 700;
+    margin-top: 1.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.markdown-container h1 {
+    font-size: 1.25rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+    padding-bottom: 0.5rem;
+}
+
+.markdown-container h2 {
+    font-size: 1.125rem;
+}
+
+.markdown-container h3 {
+    font-size: 1rem;
+}
+
+.markdown-container p {
+    margin-bottom: 0.75rem;
+}
+
+.markdown-container ul,
+.markdown-container ol {
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+    padding-left: 1.25rem;
+}
+
+.markdown-container li {
+    margin-bottom: 0.375rem;
+}
+
+.markdown-container ul {
+    list-style-type: disc;
+}
+
+.markdown-container ol {
+    list-style-type: decimal;
+}
+
+.markdown-container strong {
+    color: #3b82f6;
+    font-weight: 700;
+}
+
+.markdown-container em {
+    color: #93c5fd;
+    font-style: italic;
+}
+
+.markdown-container code {
+    background: rgba(51, 65, 85, 0.5);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.875em;
+    color: #60a5fa;
+}
+
+.markdown-container blockquote {
+    border-left: 3px solid #3b82f6;
+    padding-left: 1rem;
+    margin-left: 0;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    font-style: italic;
+    color: #94a3b8;
+}
+
+/* Dark mode overrides for Markdown */
+.dark .markdown-container strong {
+    color: #60a5fa;
+}
+
+/* Light mode overrides for Markdown */
+:not(.dark) .markdown-container {
+    color: #ffffff;
+}
+
+:not(.dark) .markdown-container h1,
+:not(.dark) .markdown-container h2,
+:not(.dark) .markdown-container h3 {
+    color: #0f172a;
+}
+
+:not(.dark) .markdown-container blockquote {
+    color: #64748b;
+}
+
+:not(.dark) .markdown-container code {
+    background: #f1f5f9;
+    color: #2563eb;
+}
