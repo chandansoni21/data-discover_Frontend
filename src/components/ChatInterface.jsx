@@ -14,6 +14,7 @@ import logo from '../Assets/lomgo.png';
 import { API, IDManager } from '../utils/api';
 import PDFViewer from './PDFViewer';
 import Catalogs from './Catalogs';
+import ChartRenderer from './ChartRenderer';
 
 // Language options
 const languages = [
@@ -345,6 +346,13 @@ export default function ChatInterface({
                         }`}
                     >
                       <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.text}</p>
+
+                      {/* Chart Rendering */}
+                      {message.type === 'bot' && message.charts && (
+                        <div className="mt-4">
+                          <ChartRenderer charts={message.charts} isDark={isDark} />
+                        </div>
+                      )}
 
                       {/* Sources Rendering */}
                       {message.sources && message.sources.length > 0 && (

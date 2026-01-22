@@ -112,6 +112,7 @@ export const API = {
     dashboard: {
         // defined based on user mention, waiting for specific routes
         getData: () => apiClient.get('/api/dashboard/data'),
+        getInsights: () => apiClient.get('/api/dashboard/insights'),
     },
     chat: {
         // defined based on user mention, waiting for specific routes

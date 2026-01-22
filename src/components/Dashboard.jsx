@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     BarChart3, TrendingUp, TrendingDown, Activity, Database,
     Users, DollarSign, ShoppingCart, FileText, Zap, ArrowUpRight,
     ArrowDownRight, PieChart, LineChart, AlertCircle
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { API } from '../utils/api';
 
 // Dummy data for different domains
 const getDashboardData = (domain, fileType) => {
@@ -83,6 +84,30 @@ const getDashboardData = (domain, fileType) => {
 export default function Dashboard({ domain, fileType }) {
     const { isDark } = useTheme();
     const data = getDashboardData(domain, fileType);
+    
+    const [insights, setInsights] = useState({
+        user_catalog_count: 0,
+        total_queries: 0,
+        unique_databases_chatted: 0
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchInsights = async () => {
+            try {
+                const response = await API.dashboard.getInsights();
+                if (response.data) {
+                    setInsights(response.data);
+                }
+            } catch (error) {
+                console.error('Failed to fetch dashboard insights:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchInsights();
+    }, []);
 
     const bgClass = isDark ? 'bg-gray-800' : 'bg-white';
     const cardBgClass = isDark ? 'bg-gray-700/50' : 'bg-gray-50';
@@ -119,10 +144,32 @@ export default function Dashboard({ domain, fileType }) {
                 </div>
 
                 {/* KPI Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {data.kpis.map((kpi, idx) => {
-                        const IconComponent = kpi.icon;
-                        const colorClasses = getColorClasses(kpi.color);
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[
+                        { 
+                            label: 'Catalogs Created', 
+                            value: loading ? '...' : insights.user_catalog_count.toLocaleString(), 
+                            icon: Database, 
+                            color: 'emerald', 
+                            sub: 'Across all domains' 
+                        },
+                        { 
+                            label: 'Total Queries', 
+                            value: loading ? '...' : insights.total_queries.toLocaleString(), 
+                            icon: BarChart3, 
+                            color: 'purple', 
+                            sub: 'Processed this month' 
+                        },
+                        { 
+                            label: 'Unique Databases', 
+                            value: loading ? '...' : insights.unique_databases_chatted.toLocaleString(), 
+                            icon: Activity, 
+                            color: 'blue', 
+                            sub: 'Databases chatted with' 
+                        },
+                    ].map((stat, idx) => {
+                        const IconComponent = stat.icon;
+                        const colorClasses = getColorClasses(stat.color);
                         return (
                             <div
                                 key={idx}
@@ -132,16 +179,10 @@ export default function Dashboard({ domain, fileType }) {
                                     <div className={`p-2.5 rounded-xl ${colorClasses.bg} group-hover:scale-110 transition-transform`}>
                                         <IconComponent className={`w-5 h-5 ${colorClasses.text}`} />
                                     </div>
-                                    <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${kpi.trend === 'up'
-                                            ? isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700'
-                                            : isDark ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
-                                        }`}>
-                                        {kpi.trend === 'up' ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                                        {kpi.change}
-                                    </div>
                                 </div>
-                                <p className={`text-sm ${subTextClass} mb-1`}>{kpi.label}</p>
-                                <p className={`text-2xl font-bold ${textClass}`}>{kpi.value}</p>
+                                <p className={`text-sm ${subTextClass} mb-1`}>{stat.label}</p>
+                                <p className={`text-2xl font-bold ${textClass}`}>{stat.value}</p>
+                                <p className={`text-xs ${subTextClass} mt-1`}>{stat.sub}</p>
                             </div>
                         );
                     })}

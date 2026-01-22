@@ -923,6 +923,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import ChartRenderer from './ChartRenderer';
 import './UnifiedChatInterface.css';
 
 // Register AG Grid modules
@@ -1317,79 +1318,6 @@ const UnifiedChatInterface = ({ dbName, visibility = 'local' }) => {
     const textClass = isDark ? 'text-slate-100' : 'text-gray-900';
     const subTextClass = isDark ? 'text-slate-400' : 'text-gray-500';
 
-    // Chart Renderer Component
-    const ChartRenderer = ({ charts }) => {
-        if (!charts) return null;
-
-        // Ensure we handle both a single chart object or an array of charts
-        const chartList = Array.isArray(charts) ? charts : [charts];
-
-        const renderChart = (chart, index) => {
-            if (!chart || !chart.type) return null;
-
-            const commonLayout = {
-                autosize: true,
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)',
-                font: { color: isDark ? '#f1f5f9' : '#1e293b' },
-                margin: { l: 40, r: 20, t: 40, b: 40 },
-                showlegend: true,
-                ...(chart.layout || {})
-            };
-
-            if (chart.type === 'pie') {
-                return (
-                    <div key={index} className="mt-4 w-full h-80 bg-slate-800/20 rounded-xl p-2">
-                        <Plot
-                            data={[{
-                                type: 'pie',
-                                labels: chart.data?.labels || [],
-                                values: chart.data?.values || [],
-                                hole: chart.data?.hole || 0,
-                                ...(chart.data || {})
-                            }]}
-                            layout={{
-                                ...commonLayout,
-                                title: chart.data?.title || chart.layout?.title || 'Data Distribution'
-                            }}
-                            style={{ width: '100%', height: '100%' }}
-                            config={{ responsive: true, displayModeBar: false }}
-                        />
-                    </div>
-                );
-            }
-
-            if (chart.type === 'bar') {
-                return (
-                    <div key={index} className="mt-4 w-full h-80 bg-slate-800/20 rounded-xl p-2">
-                        <Plot
-                            data={[{
-                                type: 'bar',
-                                x: chart.x || chart.data?.x || [],
-                                y: chart.y || chart.data?.y || [],
-                                marker: { color: '#3b82f6' },
-                                ...(chart.data || {})
-                            }]}
-                            layout={{
-                                ...commonLayout,
-                                title: chart.layout?.title || chart.data?.title || 'Data Trends'
-                            }}
-                            style={{ width: '100%', height: '100%' }}
-                            config={{ responsive: true, displayModeBar: false }}
-                        />
-                    </div>
-                );
-            }
-
-            return null;
-        };
-
-        return (
-            <div className="space-y-4">
-                {chartList.map((chart, i) => renderChart(chart, i))}
-            </div>
-        );
-    };
 
     const chatContainerRef = useRef(null);
 
@@ -1616,7 +1544,7 @@ const UnifiedChatInterface = ({ dbName, visibility = 'local' }) => {
                                         <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                                     )}
 
-                                    {msg.type === 'bot' && msg.charts && <ChartRenderer charts={msg.charts} />}
+                                    {msg.type === 'bot' && msg.charts && <ChartRenderer charts={msg.charts} isDark={isDark} />}
 
                                     {msg.type === 'bot' && msg.sources && msg.sources.length > 0 && (
                                         <div className="mt-4 pt-4 border-t border-slate-700">

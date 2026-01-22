@@ -12,7 +12,7 @@ import UploadModal from './UploadModal';
 import Catalogs from './Catalogs';
 import logo from '../Assets/lomgo.png';
 import { chatHistory, activeConversations } from '../data/mockData';
-import { IDManager } from '../utils/api';
+import { IDManager, API } from '../utils/api';
 
 // Domain data
 const domains = [
@@ -54,6 +54,13 @@ export default function Home() {
     totalCatalogues: 42
   });
 
+  const [insights, setInsights] = useState({
+    user_catalog_count: 0,
+    total_queries: 0,
+    unique_databases_chatted: 0
+  });
+  const [insightsLoading, setInsightsLoading] = useState(true);
+
   const [activeSection, setActiveSection] = useState('home');
   const [greeting, setGreeting] = useState('');
 
@@ -63,6 +70,23 @@ export default function Home() {
   useEffect(() => {
     // Generate new Trace ID for Home context
     IDManager.generateNewTraceId();
+  }, []);
+
+  useEffect(() => {
+    const fetchInsights = async () => {
+      try {
+        const response = await API.dashboard.getInsights();
+        if (response.data) {
+          setInsights(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard insights:', error);
+      } finally {
+        setInsightsLoading(false);
+      }
+    };
+
+    fetchInsights();
   }, []);
 
   // Chat flow states
@@ -329,12 +353,11 @@ export default function Home() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {[
-          { label: 'Catalogs Created', value: tokenUsage.databasesCreated, icon: Database, color: 'emerald', sub: 'Across all domains' },
-          { label: 'Total Queries', value: tokenUsage.queriesProcessed.toLocaleString(), icon: BarChart3, color: 'purple', sub: 'Processed this month' },
-          { label: 'Active Conversations', value: activeChats.length, icon: Activity, color: 'blue', sub: 'Live right now' },
-          { label: 'Token Usage', value: tokenUsage.used.toLocaleString(), icon: Coins, color: 'amber', sub: 'Total tokens consumed' },
+          { label: 'Catalogs Created', value: insightsLoading ? '...' : insights.user_catalog_count.toLocaleString(), icon: Database, color: 'emerald', sub: 'Across all domains' },
+          { label: 'Total Queries', value: insightsLoading ? '...' : insights.total_queries.toLocaleString(), icon: BarChart3, color: 'purple', sub: 'Processed this month' },
+          { label: 'Unique Databases', value: insightsLoading ? '...' : insights.unique_databases_chatted.toLocaleString(), icon: Activity, color: 'blue', sub: 'Databases chatted with' },
         ].map((stat, idx) => {
           const IconComponent = stat.icon;
           return (
